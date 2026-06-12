@@ -3903,6 +3903,9 @@ body.mobile-bg { background:#000 !important; }
     <div style="margin-top:14px;text-align:center;">
       <a href="#" onclick="skipSubjectSelection();return false;" style="font-size:.65rem;color:var(--grey);text-decoration:none;letter-spacing:.08em;text-transform:uppercase;opacity:.6;cursor:none;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">Select all subjects and continue →</a>
     </div>
+    <div id="subsel-back-wrap" style="margin-top:8px;text-align:center;display:none">
+      <a href="#" onclick="window._subjectEditFromDashboard=false;goto('pg-home');return false;" style="font-size:.65rem;color:var(--grey);text-decoration:none;letter-spacing:.08em;text-transform:uppercase;opacity:.5;transition:opacity .2s" onmouseover="this.style.opacity=.9" onmouseout="this.style.opacity=.5">← Cancel, back to dashboard</a>
+    </div>
   </div>
 </div>
 
@@ -3980,6 +3983,10 @@ body.mobile-bg { background:#000 !important; }
       <button class="pill-btn" onclick="gotoApiSetup()" title="Manage API Key" style="opacity:.7">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
         API Key
+      </button>
+      <button class="pill-btn" onclick="gotoChangeSubjects()" title="Change Subjects" style="opacity:.7">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M4 6h16M4 12h10M4 18h6"/></svg>
+        Subjects
       </button>
       <button class="pill-btn" onclick="doLogout()">
         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -5258,11 +5265,28 @@ function goto(id){
       const user = session.user;
       setUser(user.user_metadata?.full_name || user.email);
       currentUserId = user.id;
+      // Single source of truth — loadUserSettings reads both groq key AND subjects
       await loadUserSettings();
-      await loadSubjectSelection();
-      applySubjectVisibility();
-      // If subjects haven't been chosen yet, go to subject selection first
+      // Only fall back to localStorage if Supabase had nothing
       if(selectedSubjects.size === 0){
+        const saved = localStorage.getItem('eco_selected_subjects');
+        if(saved){
+          try {
+            const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
+            const parsed = JSON.parse(saved).filter(s => validSubjects.includes(s));
+            selectedSubjects = new Set(parsed);
+          } catch(e){}
+        }
+      }
+      // Restore visual state of subject selection cards
+      selectedSubjects.forEach(name => {
+        const card = document.getElementById('sc-' + name.replace(/\s+/g,'_'));
+        if(card) card.classList.add('selected');
+      });
+      applySubjectVisibility();
+      if(selectedSubjects.size === 0){
+        const backWrap = document.getElementById('subsel-back-wrap');
+        if(backWrap) backWrap.style.display = 'none';
         goto('pg-subjects');
       } else {
         goto(groqApiKey ? 'pg-home' : 'pg-api');
@@ -5285,7 +5309,10 @@ let groqApiKey = '';
 async function loadUserSettings(){
   if(!currentUserId) return;
   try {
-    const { data } = await supa.from('user_settings').select('groq_api_key, selected_subjects').eq('user_id', currentUserId).single();
+    const { data } = await supa.from('user_settings')
+      .select('groq_api_key, selected_subjects')
+      .eq('user_id', currentUserId)
+      .single();
     if(data?.groq_api_key){
       groqApiKey = data.groq_api_key;
       const badge = document.getElementById('api-saved-badge');
@@ -5296,8 +5323,10 @@ async function loadUserSettings(){
     if(data?.selected_subjects?.length){
       const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
       const filtered = data.selected_subjects.filter(s => validSubjects.includes(s));
-      selectedSubjects = new Set(filtered);
-      localStorage.setItem('eco_selected_subjects', JSON.stringify(filtered));
+      if(filtered.length > 0){
+        selectedSubjects = new Set(filtered);
+        localStorage.setItem('eco_selected_subjects', JSON.stringify(filtered));
+      }
     }
   } catch(e){}
 }
@@ -5393,9 +5422,35 @@ async function saveSubjectSelection(){
   }
   localStorage.setItem('eco_selected_subjects', JSON.stringify(Array.from(selectedSubjects)));
   applySubjectVisibility();
-  goto('pg-api');
+  // If editing from dashboard, go back home — otherwise continue to API setup
+  if(window._subjectEditFromDashboard){
+    window._subjectEditFromDashboard = false;
+    showToast('Subjects updated ✓');
+    goto('pg-home');
+  } else {
+    goto('pg-api');
+  }
 }
 
+function gotoChangeSubjects(){
+  // Mark all currently selected cards as active before showing the screen
+  const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
+  validSubjects.forEach(name => {
+    const card = document.getElementById('sc-' + name.replace(/\s+/g,'_'));
+    if(!card) return;
+    if(selectedSubjects.has(name)){
+      card.classList.add('selected');
+    } else {
+      card.classList.remove('selected');
+    }
+  });
+  // Show the cancel/back link
+  const backWrap = document.getElementById('subsel-back-wrap');
+  if(backWrap) backWrap.style.display = 'block';
+  // Flag so saveSubjectSelection knows to return home
+  window._subjectEditFromDashboard = true;
+  goto('pg-subjects');
+}
 function skipSubjectSelection(){
   // Select all available subjects (Biology excluded — not built yet)
   const all = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
@@ -5495,6 +5550,22 @@ async function doLogin(){
     setUser(user.user_metadata?.full_name || user.email);
     currentUserId = user.id;
     await loadUserSettings();
+    // Only fall back to localStorage if Supabase had nothing
+    if(selectedSubjects.size === 0){
+      const saved = localStorage.getItem('eco_selected_subjects');
+      if(saved){
+        try {
+          const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
+          const parsed = JSON.parse(saved).filter(s => validSubjects.includes(s));
+          selectedSubjects = new Set(parsed);
+        } catch(e){}
+      }
+    }
+    // Restore visual state of subject selection cards
+    selectedSubjects.forEach(name => {
+      const card = document.getElementById('sc-' + name.replace(/\s+/g,'_'));
+      if(card) card.classList.add('selected');
+    });
     applySubjectVisibility();
     if(selectedSubjects.size === 0){
       goto('pg-subjects');
