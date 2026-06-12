@@ -657,6 +657,17 @@ body.mobile-bg #bg-canvas { display:none !important; }
 
 /* List */
 .list-grid { display:flex; flex-direction:column; gap:8px; }
+.drill-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-top:8px; }
+.drill-card{ background:var(--card-bg); border:1.5px solid var(--border); border-radius:14px; padding:22px 18px; cursor:pointer; transition:transform .15s,border-color .15s,box-shadow .15s; display:flex; flex-direction:column; gap:8px; }
+.drill-card:hover{ transform:translateY(-3px); border-color:var(--accent); box-shadow:0 6px 24px rgba(0,224,255,.1); }
+.drill-card-icon{ font-size:1.6rem; line-height:1; }
+.drill-card-title{ font-family:var(--font-head); font-size:1.05rem; font-weight:700; letter-spacing:.01em; }
+.drill-card-sub{ font-size:.68rem; opacity:.45; text-transform:uppercase; letter-spacing:.09em; }
+.drill-breadcrumb{ display:flex; align-items:center; gap:8px; margin-bottom:18px; font-size:.75rem; opacity:.55; flex-wrap:wrap; }
+.drill-breadcrumb span{ cursor:pointer; transition:opacity .15s; }
+.drill-breadcrumb span:hover{ opacity:1; text-decoration:underline; }
+.drill-breadcrumb .sep{ opacity:.25; cursor:default; pointer-events:none; }
+.drill-breadcrumb .crumb-current{ opacity:1; font-weight:700; cursor:default; pointer-events:none; }
 .list-item {
   border:2px solid var(--border); border-radius:12px;
   background:var(--card-bg); padding:16px 18px;
@@ -4334,23 +4345,40 @@ body.mobile-bg { background:#000 !important; }
   <div class="top-bar">
     <span class="top-logo" onclick="goto('pg-home')">EduCorps</span>
     <div class="top-right">
-      <button class="pill-btn" onclick="goto('pg-subject')"><svg viewBox="0 0 24 24"><use href="#ic-back"/></svg> <span id="papers-back-lbl">Back</span></button>
+      <button class="pill-btn" id="papers-back-btn" onclick="papersGoBack()"><svg viewBox="0 0 24 24"><use href="#ic-back"/></svg> <span id="papers-back-lbl">Back</span></button>
       <div class="top-avatar" id="p-avatar">—</div>
     </div>
   </div>
   <div class="sec-body">
     <div class="sec-main">
       <div class="sec-header">
-        <div class="sec-count-badge"><div class="sec-count-dot" id="papers-dot" style="background:#e8307e"></div><span id="papers-count-lbl">— Papers</span></div>
-        <div class="sec-heading" id="papers-heading">Past Papers</div>
-        <div class="sec-sub" id="papers-sub">full examination papers with timed mode &amp; AI marking</div>
+        <div class="sec-count-badge"><div class="sec-count-dot" id="papers-dot" style="background:#e8307e"></div><span id="papers-count-lbl">Past Papers</span></div>
+        <div class="sec-heading" id="papers-heading">Select Year</div>
+        <div class="sec-sub" id="papers-sub">choose a year to see available sessions</div>
       </div>
-      <div class="search-wrap">
-        <span class="search-icon"><svg><use href="#ic-search"/></svg></span>
-        <input class="search-input" placeholder="Search by year, board, or paper type…" oninput="filterPapers(this.value)">
+
+      <!-- LEVEL 1: Year cards -->
+      <div id="papers-level-year">
+        <div class="drill-grid" id="year-cards"></div>
       </div>
-      <div class="list-grid" id="papers-list"></div>
+
+      <!-- LEVEL 2: Session cards -->
+      <div id="papers-level-session" style="display:none">
+        <div class="drill-breadcrumb" id="session-breadcrumb"></div>
+        <div class="drill-grid" id="session-cards"></div>
+      </div>
+
+      <!-- LEVEL 3: Paper list -->
+      <div id="papers-level-list" style="display:none">
+        <div class="drill-breadcrumb" id="list-breadcrumb"></div>
+        <div class="search-wrap">
+          <span class="search-icon"><svg><use href="#ic-search"/></svg></span>
+          <input class="search-input" placeholder="Search papers…" oninput="filterPapers(this.value)">
+        </div>
+        <div class="list-grid" id="papers-list"></div>
+      </div>
     </div>
+
     <aside class="sec-aside">
       <div class="aside-stat-row">
         <div class="aside-stat">
@@ -4359,11 +4387,9 @@ body.mobile-bg { background:#000 !important; }
         </div>
         <div class="aside-stat">
           <div class="aside-stat-val" id="papers-stat-years">—</div>
-          <div class="aside-stat-lbl">Years</div>
+          <div class="aside-stat-lbl">Sessions</div>
         </div>
       </div>
-      <div class="aside-label">Filter by Year</div>
-      <div class="year-cloud" id="year-filters"></div>
       <button class="ai-toggle-btn" onclick="toggleAI('papers-ai')">
         <svg viewBox="0 0 24 24"><use href="#ic-ai"/></svg> Ask AI Assistant
       </button>
@@ -4818,27 +4844,29 @@ async function openSubject(name){
   try {
     const { data, error } = await supa
       .from('content')
-      .select('id, title, subject, year, session, paper_code, storage_path, questions, duration_mins')
+      .select('id, title, subject, year, session, paper_code, storage_path, questions')
       .eq('type', 'paper')
       .eq('subject', name)
-      .order('session', { ascending: true })
       .order('paper_code', { ascending: true });
 
-    if(error) throw error;
+    if(error) throw new Error(error.message || JSON.stringify(error));
     const papers = (data || []).map(row => ({
       id:           row.id,
-      title:        row.title,
+      title:        row.title || (row.paper_code ? 'Paper ' + row.paper_code : 'Paper'),
       subject:      row.subject,
       year:         row.year,
       session:      row.session,
       paper_code:   row.paper_code,
       storage_path: row.storage_path,
-      duration:     row.duration_mins,
+      duration:     null,
       questions:    row.questions || [],
       sub:          [row.session, row.paper_code].filter(Boolean).join(' · '),
     }));
 
-    renderPapers(papers);
+    _allPapers = papers;
+    _drillYear = null;
+    _drillSession = null;
+    papersRenderYear();
     if(pd) pd.textContent = papers.length + ' past papers available';
 
     // Update count stats
@@ -4846,8 +4874,10 @@ async function openSubject(name){
     const sy = document.getElementById('papers-stat-years'); if(sy) sy.textContent = [...new Set(papers.map(p=>p.session))].filter(Boolean).length + ' sessions';
 
   } catch(e) {
-    console.error('Failed to load papers:', e);
-    if(papersList) papersList.innerHTML = '<div style="padding:24px;opacity:.5;text-align:center">Could not load papers. Check your connection.</div>';
+    const msg = e?.message || String(e);
+    console.error('Failed to load papers:', msg);
+    if(papersList) papersList.innerHTML = `<div style="padding:24px;opacity:.5;text-align:center">Could not load papers: ${msg}</div>`;
+    if(pd) pd.textContent = 'Error loading papers';
   }
 
   // Desc cards
@@ -5747,6 +5777,121 @@ function setDiff(el, d){
 renderTopics(TOPICS);
 
 // ══ PAPERS ══
+// ══ PAPERS DRILL-DOWN ══
+// State for drill-down
+let _allPapers = [];       // all papers for current subject
+let _drillYear = null;     // selected year
+let _drillSession = null;  // selected session
+
+const SESSION_ORDER = ['Feb/Mar','May/Jun','Oct/Nov'];
+const SESSION_ICONS = { 'Feb/Mar':'❄️', 'May/Jun':'🌸', 'Oct/Nov':'🍂' };
+
+function papersShowLevel(level){
+  document.getElementById('papers-level-year').style.display    = level==='year'    ? '' : 'none';
+  document.getElementById('papers-level-session').style.display = level==='session' ? '' : 'none';
+  document.getElementById('papers-level-list').style.display    = level==='list'    ? '' : 'none';
+}
+
+function papersGoBack(){
+  if(_drillSession){
+    // Go back from list to session
+    _drillSession = null;
+    papersRenderSession(_drillYear);
+  } else if(_drillYear){
+    // Go back from session to year
+    _drillYear = null;
+    papersRenderYear();
+  } else {
+    // Go back from year to subject
+    goto('pg-subject');
+  }
+}
+
+function papersRenderYear(){
+  _drillYear = null; _drillSession = null;
+  const heading = document.getElementById('papers-heading');
+  const sub     = document.getElementById('papers-sub');
+  if(heading) heading.textContent = 'Select Year';
+  if(sub)     sub.textContent     = 'choose a year to see available sessions';
+  document.getElementById('papers-back-lbl').textContent = currentSubject ? currentSubject.name : 'Back';
+
+  const years = [...new Set(_allPapers.map(p=>p.year))].filter(Boolean).sort((a,b)=>b-a);
+  const c = document.getElementById('year-cards');
+  c.innerHTML = '';
+  years.forEach(y => {
+    const count = _allPapers.filter(p=>p.year===y).length;
+    const card  = document.createElement('div');
+    card.className = 'drill-card';
+    card.innerHTML = `
+      <div class="drill-card-icon">📅</div>
+      <div class="drill-card-title">${y}</div>
+      <div class="drill-card-sub">${count} paper${count!==1?'s':''}</div>`;
+    card.onclick = () => papersRenderSession(y);
+    c.appendChild(card);
+  });
+  papersShowLevel('year');
+}
+
+function papersRenderSession(year){
+  _drillYear = year; _drillSession = null;
+  const heading = document.getElementById('papers-heading');
+  const sub     = document.getElementById('papers-sub');
+  if(heading) heading.textContent = year + ' — Select Session';
+  if(sub)     sub.textContent     = 'choose an exam session';
+  document.getElementById('papers-back-lbl').textContent = String(year);
+
+  // Breadcrumb
+  const bc = document.getElementById('session-breadcrumb');
+  bc.innerHTML = `
+    <span onclick="papersRenderYear()">${currentSubject ? currentSubject.name : 'Papers'}</span>
+    <span class="sep">›</span>
+    <span class="crumb-current">${year}</span>`;
+
+  const sessions = [...new Set(_allPapers.filter(p=>p.year===year).map(p=>p.session))]
+    .filter(Boolean)
+    .sort((a,b)=>(SESSION_ORDER.indexOf(a)||99)-(SESSION_ORDER.indexOf(b)||99));
+
+  const c = document.getElementById('session-cards');
+  c.innerHTML = '';
+  sessions.forEach(sess => {
+    const count = _allPapers.filter(p=>p.year===year && p.session===sess).length;
+    const card  = document.createElement('div');
+    card.className = 'drill-card';
+    card.innerHTML = `
+      <div class="drill-card-icon">${SESSION_ICONS[sess]||'📄'}</div>
+      <div class="drill-card-title">${sess}</div>
+      <div class="drill-card-sub">${count} paper${count!==1?'s':''}</div>`;
+    card.onclick = () => papersRenderList(year, sess);
+    c.appendChild(card);
+  });
+  papersShowLevel('session');
+}
+
+function papersRenderList(year, session){
+  _drillYear = year; _drillSession = session;
+  const heading = document.getElementById('papers-heading');
+  const sub     = document.getElementById('papers-sub');
+  if(heading) heading.textContent = session + ' ' + year;
+  if(sub)     sub.textContent     = 'select a paper to begin';
+  document.getElementById('papers-back-lbl').textContent = session;
+
+  // Breadcrumb
+  const bc = document.getElementById('list-breadcrumb');
+  bc.innerHTML = `
+    <span onclick="papersRenderYear()">${currentSubject ? currentSubject.name : 'Papers'}</span>
+    <span class="sep">›</span>
+    <span onclick="papersRenderSession(${year})">${year}</span>
+    <span class="sep">›</span>
+    <span class="crumb-current">${session}</span>`;
+
+  const papers = _allPapers
+    .filter(p=>p.year===year && p.session===session)
+    .sort((a,b)=>(a.paper_code||'').localeCompare(b.paper_code||''));
+
+  renderPapers(papers);
+  papersShowLevel('list');
+}
+
 function renderPapers(list){
   const c = document.getElementById('papers-list');
   c.innerHTML = '';
@@ -5758,75 +5903,35 @@ function renderPapers(list){
     return;
   }
 
-  // Group by session
-  const SESSION_ORDER = ['Feb/Mar','May/Jun','Oct/Nov'];
-  const groups = {};
   list.forEach(p => {
-    const key = p.session || 'Other';
-    if(!groups[key]) groups[key] = [];
-    groups[key].push(p);
-  });
-
-  // Render each session group
-  const sessions = Object.keys(groups).sort((a,b) => {
-    const ai = SESSION_ORDER.indexOf(a), bi = SESSION_ORDER.indexOf(b);
-    return (ai===-1?99:ai) - (bi===-1?99:bi);
-  });
-
-  sessions.forEach(session => {
-    // Session header
-    const header = document.createElement('div');
-    header.className = 'session-header';
-    header.style.cssText = 'padding:10px 4px 6px;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;opacity:.5;font-weight:700;margin-top:8px;border-bottom:1px solid var(--color-border-tertiary);margin-bottom:6px';
-    header.textContent = session + ' 2025';
-    c.appendChild(header);
-
-    // Papers in this session
-    groups[session].forEach(p => {
-      const d = document.createElement('div');
-      d.className = 'list-item';
-      d.onclick = () => startExam(p, 'paper');
-
-      // Extract variant number from paper_code e.g. 0580/42 → 42
-      const variant  = p.paper_code ? p.paper_code.split('/')[1] : '';
-      const boardBadge = variant ? 'P' + variant[0] : 'P';
-      const marks    = Array.isArray(p.questions) && p.questions.length > 0
-        ? p.questions.reduce((s,q)=>s+(q.marks||0),0)
-        : null;
-      const duration = p.duration ? p.duration + ' min' : '';
-
-      d.innerHTML = `
-        <div class="paper-item-header">
-          <span class="paper-board-badge">${boardBadge}</span>
-          <div class="li-left" style="gap:3px">
-            <div class="li-title">${p.title}</div>
-            <div class="li-meta paper-year-tag">${p.paper_code || ''}${duration ? ' · ' + duration : ''}</div>
-          </div>
+    const d = document.createElement('div');
+    d.className = 'list-item';
+    d.onclick = () => startExam(p, 'paper');
+    const variant    = p.paper_code ? p.paper_code.split('/')[1] : '';
+    const boardBadge = variant ? 'P' + variant[0] : 'P';
+    const marks      = Array.isArray(p.questions) && p.questions.length > 0
+      ? p.questions.reduce((s,q)=>s+(q.marks||0),0) : null;
+    const duration   = p.duration ? p.duration + ' min' : '';
+    d.innerHTML = `
+      <div class="paper-item-header">
+        <span class="paper-board-badge">${boardBadge}</span>
+        <div class="li-left" style="gap:3px">
+          <div class="li-title">${p.title}</div>
+          <div class="li-meta paper-year-tag">${p.paper_code||''}${duration?' · '+duration:''}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-          ${marks ? `<span class="paper-marks-pill">${marks} marks</span>` : ''}
-          <div class="li-arrow"><svg width="16" height="16"><use href="#ic-arrow"/></svg></div>
-        </div>`;
-      c.appendChild(d);
-    });
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        ${marks?`<span class="paper-marks-pill">${marks} marks`+`</span>`:''}
+        <div class="li-arrow"><svg width="16" height="16"><use href="#ic-arrow"/></svg></div>
+      </div>`;
+    c.appendChild(d);
   });
 }
+
 function filterPapers(q){
-  // Re-fetch is async so just search within already-rendered list
   const items = document.querySelectorAll('#papers-list .list-item');
   items.forEach(item => {
-    const text = item.textContent.toLowerCase();
-    item.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
-  });
-  // Also hide empty session headers
-  document.querySelectorAll('#papers-list .session-header').forEach(h => {
-    let next = h.nextElementSibling;
-    let hasVisible = false;
-    while(next && !next.classList.contains('session-header')){
-      if(next.style.display !== 'none') hasVisible = true;
-      next = next.nextElementSibling;
-    }
-    h.style.display = hasVisible ? '' : 'none';
+    item.style.display = item.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
   });
 }
 
