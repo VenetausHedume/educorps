@@ -4779,45 +4779,85 @@ const SUBJECTS = [
 ];
 let currentSubject = null;
 
-function openSubject(name){
+async function openSubject(name){
   const s = SUBJECTS.find(x=>x.name===name);
   if(!s) return;
   currentSubject = s;
-  // Update hub header (guarded)
-  const hubDot = document.getElementById('subj-hub-dot'); if(hubDot) hubDot.style.background = s.color;
+
+  // Update hub header
+  const hubDot  = document.getElementById('subj-hub-dot');  if(hubDot)  hubDot.style.background = s.color;
   const hubName = document.getElementById('subj-hub-name'); if(hubName) hubName.textContent = s.name;
   const hubCode = document.getElementById('subj-hub-code'); if(hubCode) hubCode.textContent = s.code;
-  // Subject progress bar colour + value
+
+  // Subject progress bar
   const fill = document.getElementById('subj-fill');
-  if(fill){ fill.style.background = s.color; }
-  const hist = examHistory.filter(h=>h.subject===name);
+  if(fill) fill.style.background = s.color;
+  const hist    = examHistory.filter(h=>h.subject===name);
   const subjAvg = hist.length ? Math.round(hist.reduce((a,h)=>a+h.pct,0)/hist.length) : 0;
-  const subjPctEl = document.getElementById('subj-pct'); if(subjPctEl) subjPctEl.textContent = hist.length ? subjAvg+'%' : '—';
+  const subjPctEl   = document.getElementById('subj-pct');       if(subjPctEl)   subjPctEl.textContent   = hist.length ? subjAvg+'%' : '—';
   const subjTitleEl = document.getElementById('subj-prog-title'); if(subjTitleEl) subjTitleEl.textContent = s.name+' Progress';
   setTimeout(()=>{ const f=document.getElementById('subj-fill'); if(f) f.style.width=subjAvg+'%'; },80);
+
   // Back labels
-  const lbl = s.name;
   ['notes-back-lbl','topics-back-lbl','papers-back-lbl','prog-back-lbl'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.textContent=lbl;
+    const el=document.getElementById(id); if(el) el.textContent=s.name;
   });
-  // Filter notes/topics/papers to this subject
+
+  // Notes and topics from hardcoded arrays (Step 3 — will migrate later)
   const subjectNotes  = NOTES.filter(n=>n.subject===name);
-  const subjectTopics = TOPICS.filter(t=>t.title.startsWith(name+' —')||t.title.startsWith(name+' -')||t.title.toLowerCase().includes(name.toLowerCase().split(' ')[0].toLowerCase()));
-  const subjectPapers = PAPERS.filter(p=>p.title.toLowerCase().includes(name.toLowerCase().split(' ')[0].toLowerCase())||p.subject===name);
+  const subjectTopics = TOPICS.filter(t=>t.title.toLowerCase().includes(name.toLowerCase().split(' ')[0].toLowerCase()));
   renderNotes(subjectNotes);
   renderTopics(subjectTopics);
-  renderPapers(subjectPapers);
-  // Update subject-level description cards
-  const nd=document.getElementById('subj-notes-desc');
-  const td=document.getElementById('subj-topics-desc');
-  const pd=document.getElementById('subj-papers-desc');
-  if(nd) nd.textContent = subjectNotes.length+' notes for '+name;
-  if(td) td.textContent = subjectTopics.length+' topic sets to practise';
-  if(pd) pd.textContent = subjectPapers.length+' past papers available';
-  // Progress page setup (guarded)
+
+  // Papers — fetch live from Supabase
+  const pd = document.getElementById('subj-papers-desc');
+  if(pd) pd.textContent = 'Loading papers…';
+  const papersList = document.getElementById('papers-list');
+  if(papersList) papersList.innerHTML = '<div style="padding:24px;opacity:.5;text-align:center">Loading…</div>';
+
+  try {
+    const { data, error } = await supa
+      .from('content')
+      .select('id, title, subject, year, session, paper_code, storage_path, questions, duration_mins')
+      .eq('type', 'paper')
+      .eq('subject', name)
+      .order('session', { ascending: true })
+      .order('paper_code', { ascending: true });
+
+    if(error) throw error;
+    const papers = (data || []).map(row => ({
+      id:           row.id,
+      title:        row.title,
+      subject:      row.subject,
+      year:         row.year,
+      session:      row.session,
+      paper_code:   row.paper_code,
+      storage_path: row.storage_path,
+      duration:     row.duration_mins,
+      questions:    row.questions || [],
+      sub:          [row.session, row.paper_code].filter(Boolean).join(' · '),
+    }));
+
+    renderPapers(papers);
+    if(pd) pd.textContent = papers.length + ' past papers available';
+
+    // Update count stats
+    const sv = document.getElementById('papers-stat-total'); if(sv) sv.textContent = papers.length;
+    const sy = document.getElementById('papers-stat-years'); if(sy) sy.textContent = [...new Set(papers.map(p=>p.session))].filter(Boolean).length + ' sessions';
+
+  } catch(e) {
+    console.error('Failed to load papers:', e);
+    if(papersList) papersList.innerHTML = '<div style="padding:24px;opacity:.5;text-align:center">Could not load papers. Check your connection.</div>';
+  }
+
+  // Desc cards
+  const nd = document.getElementById('subj-notes-desc');  if(nd) nd.textContent = subjectNotes.length+' notes for '+name;
+  const td = document.getElementById('subj-topics-desc'); if(td) td.textContent = subjectTopics.length+' topic sets to practise';
+
+  // Progress page
   const pptEl = document.getElementById('prog-page-title'); if(pptEl) pptEl.textContent = name+' Progress';
-  const ppsEl = document.getElementById('prog-page-sub'); if(ppsEl) ppsEl.textContent = 'score history & performance';
-  const pa = document.getElementById('prog-avatar'); if(pa) pa.textContent = currentUser[0]||'—';
+  const ppsEl = document.getElementById('prog-page-sub');   if(ppsEl) ppsEl.textContent = 'score history & performance';
+  const pa    = document.getElementById('prog-avatar');      if(pa)    pa.textContent    = currentUser[0]||'—';
   renderProgressPage(name);
   goto('pg-subject');
 }
@@ -5708,47 +5748,87 @@ renderTopics(TOPICS);
 
 // ══ PAPERS ══
 function renderPapers(list){
-  const c = document.getElementById('papers-list'); c.innerHTML = '';
+  const c = document.getElementById('papers-list');
+  c.innerHTML = '';
   const lbl = document.getElementById('papers-count-lbl');
   if(lbl) lbl.textContent = list.length + ' Paper' + (list.length!==1?'s':'');
-  const sv = document.getElementById('papers-stat-total'); if(sv) sv.textContent = PAPERS.length;
-  const sy = document.getElementById('papers-stat-years'); if(sy) sy.textContent = [...new Set(PAPERS.map(p=>p.year))].length;
+
+  if(list.length === 0){
+    c.innerHTML = '<div style="padding:24px;opacity:.5;text-align:center">No papers found.</div>';
+    return;
+  }
+
+  // Group by session
+  const SESSION_ORDER = ['Feb/Mar','May/Jun','Oct/Nov'];
+  const groups = {};
   list.forEach(p => {
-    const d = document.createElement('div'); d.className = 'list-item';
-    d.onclick = () => startExam(p,'paper');
-    const paperNum = p.title.match(/Paper\s*(\d+)/i);
-    const boardLabel = paperNum ? 'P' + paperNum[1] : 'AQA';
-    d.innerHTML = `
-      <div class="paper-item-header">
-        <span class="paper-board-badge">${boardLabel}</span>
-        <div class="li-left" style="gap:3px">
-          <div class="li-title">${p.title}</div>
-          <div class="li-meta paper-year-tag">${p.year} · ${p.sub}</div>
+    const key = p.session || 'Other';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  });
+
+  // Render each session group
+  const sessions = Object.keys(groups).sort((a,b) => {
+    const ai = SESSION_ORDER.indexOf(a), bi = SESSION_ORDER.indexOf(b);
+    return (ai===-1?99:ai) - (bi===-1?99:bi);
+  });
+
+  sessions.forEach(session => {
+    // Session header
+    const header = document.createElement('div');
+    header.className = 'session-header';
+    header.style.cssText = 'padding:10px 4px 6px;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;opacity:.5;font-weight:700;margin-top:8px;border-bottom:1px solid var(--color-border-tertiary);margin-bottom:6px';
+    header.textContent = session + ' 2025';
+    c.appendChild(header);
+
+    // Papers in this session
+    groups[session].forEach(p => {
+      const d = document.createElement('div');
+      d.className = 'list-item';
+      d.onclick = () => startExam(p, 'paper');
+
+      // Extract variant number from paper_code e.g. 0580/42 → 42
+      const variant  = p.paper_code ? p.paper_code.split('/')[1] : '';
+      const boardBadge = variant ? 'P' + variant[0] : 'P';
+      const marks    = Array.isArray(p.questions) && p.questions.length > 0
+        ? p.questions.reduce((s,q)=>s+(q.marks||0),0)
+        : null;
+      const duration = p.duration ? p.duration + ' min' : '';
+
+      d.innerHTML = `
+        <div class="paper-item-header">
+          <span class="paper-board-badge">${boardBadge}</span>
+          <div class="li-left" style="gap:3px">
+            <div class="li-title">${p.title}</div>
+            <div class="li-meta paper-year-tag">${p.paper_code || ''}${duration ? ' · ' + duration : ''}</div>
+          </div>
         </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <span class="paper-marks-pill">${p.questions ? p.questions.reduce((s,q)=>s+q.marks,0) : '—'} marks</span>
-        <div class="li-arrow"><svg width="16" height="16"><use href="#ic-arrow"/></svg></div>
-      </div>`;
-    c.appendChild(d);
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${marks ? `<span class="paper-marks-pill">${marks} marks</span>` : ''}
+          <div class="li-arrow"><svg width="16" height="16"><use href="#ic-arrow"/></svg></div>
+        </div>`;
+      c.appendChild(d);
+    });
   });
 }
-function filterPapers(q){ renderPapers(PAPERS.filter(p => p.title.toLowerCase().includes(q.toLowerCase()) || String(p.year).includes(q))); }
-(function(){
-  const yf = document.getElementById('year-filters');
-  if(!yf) return;
-  [...new Set(PAPERS.map(p=>p.year))].sort((a,b)=>b-a).forEach(y => {
-    const b = document.createElement('div'); b.className = 'year-tag';
-    b.textContent = y;
-    b.onclick = () => { renderPapers(PAPERS.filter(p=>p.year===y)); showToast('Year: '+y); document.querySelectorAll('.year-tag').forEach(t=>t.classList.remove('active')); b.classList.add('active'); };
-    yf.appendChild(b);
+function filterPapers(q){
+  // Re-fetch is async so just search within already-rendered list
+  const items = document.querySelectorAll('#papers-list .list-item');
+  items.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
   });
-  const all = document.createElement('div'); all.className = 'year-tag';
-  all.textContent = 'All';
-  all.onclick = () => { renderPapers(PAPERS); document.querySelectorAll('.year-tag').forEach(t=>t.classList.remove('active')); all.classList.add('active'); };
-  yf.appendChild(all);
-})();
-renderPapers(PAPERS);
+  // Also hide empty session headers
+  document.querySelectorAll('#papers-list .session-header').forEach(h => {
+    let next = h.nextElementSibling;
+    let hasVisible = false;
+    while(next && !next.classList.contains('session-header')){
+      if(next.style.display !== 'none') hasVisible = true;
+      next = next.nextElementSibling;
+    }
+    h.style.display = hasVisible ? '' : 'none';
+  });
+}
 
 // ══ EXAM ══
 function startExam(item, type){
