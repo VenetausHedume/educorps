@@ -1582,7 +1582,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 
 /* ── HOME OVERALL PROGRESS ── */
 .home-overall-wrap{width:min(880px,94vw);background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:22px 26px;animation:riseIn .5s both;}
-.home-overall-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.home-overall-header{display:flex;flex-direction:column;margin-bottom:14px;}
 .home-overall-title{font-family:"Caveat",cursive;font-size:1.15rem;font-weight:700;color:var(--fg);}
 .home-overall-sub{font-size:.7rem;opacity:.5;letter-spacing:.04em;text-transform:uppercase;margin-top:3px;}
 .home-overall-pct{font-family:"Caveat",cursive;font-size:2.2rem;font-weight:700;color:var(--fg);}
@@ -3858,13 +3858,13 @@ body.mobile-bg { background:#000 !important; }
         <div class="subsel-card-name">Physics</div>
         <div class="subsel-card-code">IGCSE · 0625</div>
       </div>
-      <!-- Biology placeholder — not in current build -->
-      <div class="subsel-card" id="sc-Biology" style="--subsel-col:#34d399" onclick="toggleSubjectCard('Biology')">
+      <!-- Biology — coming soon, not selectable -->
+      <div class="subsel-card" id="sc-Biology" style="--subsel-col:#34d399;opacity:.35;cursor:not-allowed" onclick="showToast('Biology coming soon!')">
         <div class="subsel-card-icon">
           <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         </div>
         <div class="subsel-card-name">Biology</div>
-        <div class="subsel-card-code">IGCSE · 0610</div>
+        <div class="subsel-card-code">Coming soon</div>
       </div>
       <!-- Chemistry -->
       <div class="subsel-card" id="sc-Chemistry" style="--subsel-col:#4ade80" onclick="toggleSubjectCard('Chemistry')">
@@ -3993,11 +3993,11 @@ body.mobile-bg { background:#000 !important; }
     <!-- ── CUMULATIVE PROGRESS BAR ── -->
     <div class="home-overall-wrap">
       <div class="home-overall-header">
-        <div>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
           <div class="home-overall-title">Overall Progress</div>
-          <div class="home-overall-sub">cumulative score across all subjects</div>
+          <div class="home-overall-pct" id="overall-pct" style="font-size:1.1rem;opacity:.8">—</div>
         </div>
-        <div class="home-overall-pct" id="overall-pct">—</div>
+        <div class="home-overall-sub" style="margin-top:3px">cumulative score across all subjects</div>
       </div>
       <div class="home-overall-track">
         <div class="home-overall-fill" id="overall-fill" style="width:0%"></div>
@@ -5248,7 +5248,7 @@ function goto(id){
   document.querySelectorAll('.page').forEach(p => { p.classList.remove('visible'); p.classList.add('hidden'); });
   const el = document.getElementById(id);
   el.classList.remove('hidden');
-  requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('visible'); if(id==='pg-home') updateHomeStats(); if(id==='pg-progress' && currentSubject) renderProgressPage(currentSubject.name); }));
+  requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('visible'); if(id==='pg-home'){ applySubjectVisibility(); updateHomeStats(); } if(id==='pg-progress' && currentSubject) renderProgressPage(currentSubject.name); }));
 }
 // ══ SESSION CHECK ══
 (async () => {
@@ -5294,8 +5294,10 @@ async function loadUserSettings(){
       if(inp) inp.value = data.groq_api_key;
     }
     if(data?.selected_subjects?.length){
-      selectedSubjects = new Set(data.selected_subjects);
-      localStorage.setItem('eco_selected_subjects', JSON.stringify(data.selected_subjects));
+      const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
+      const filtered = data.selected_subjects.filter(s => validSubjects.includes(s));
+      selectedSubjects = new Set(filtered);
+      localStorage.setItem('eco_selected_subjects', JSON.stringify(filtered));
     }
   } catch(e){}
 }
@@ -5395,11 +5397,11 @@ async function saveSubjectSelection(){
 }
 
 function skipSubjectSelection(){
-  // Select all subjects
-  const all = ['Mathematics','Physics','Biology','Chemistry','Economics','Computer Science'];
+  // Select all available subjects (Biology excluded — not built yet)
+  const all = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
   all.forEach(n => {
     selectedSubjects.add(n);
-    const card = document.getElementById('sc-'+n.replace(' ','_'));
+    const card = document.getElementById('sc-'+n.replace(/\s+/g,'_'));
     if(card) card.classList.add('selected');
   });
   localStorage.setItem('eco_selected_subjects', JSON.stringify(all));
@@ -5408,31 +5410,74 @@ function skipSubjectSelection(){
 }
 
 function applySubjectVisibility(){
-  // Show only selected subject cards on home page
-  // (Biology cards won't exist yet but this is future-proof)
-  const all = ['Mathematics','Physics','Biology','Chemistry','Economics','Computer Science'];
-  all.forEach(name => {
-    const card = document.querySelector(`.subj-card[onclick*="${name}"]`);
-    if(card){
-      card.style.display = selectedSubjects.has(name) ? '' : 'none';
-    }
+  // ── 1. Subject cards ──────────────────────────────────────────
+  // Each card has a unique child id like bar-Mathematics, bar-Computer_Science
+  // Walk up to the .subj-card parent from there.
+  ['Mathematics','Physics','Chemistry','Economics','Computer Science'].forEach(name => {
+    const key = name.replace(/\s+/g, '_');
+    const barEl = document.getElementById('bar-' + key);
+    if(!barEl) return;
+    // .subj-card-bar → .subj-card-bar-wrap → .subj-card
+    const card = barEl.parentElement && barEl.parentElement.parentElement;
+    if(card) card.style.display = selectedSubjects.has(name) ? '' : 'none';
+  });
+
+  // ── 2. Overall progress bar segments (seg-*) ──────────────────
+  const segMap = {
+    'Mathematics':'seg-Mathematics', 'Physics':'seg-Physics',
+    'Chemistry':'seg-Chemistry', 'Economics':'seg-Economics',
+    'Computer Science':'seg-Computer_Science'
+  };
+  Object.keys(segMap).forEach(name => {
+    const el = document.getElementById(segMap[name]);
+    if(el) el.style.display = selectedSubjects.has(name) ? '' : 'none';
+  });
+
+  // ── 3. Overall bar legend (.hol-item) ─────────────────────────
+  const holMap = {
+    'Mathematics':'Maths','Physics':'Physics','Chemistry':'Chemistry',
+    'Economics':'Economics','Computer Science':'Comp Sci'
+  };
+  document.querySelectorAll('.hol-item').forEach(item => {
+    const text = item.textContent.trim();
+    const subject = Object.keys(holMap).find(k => holMap[k] === text);
+    if(subject) item.style.display = selectedSubjects.has(subject) ? '' : 'none';
+  });
+
+  // ── 4. Score history legend (.hpl-item) ───────────────────────
+  const hplMap = {
+    'Mathematics':'Maths','Physics':'Physics','Chemistry':'Chem',
+    'Economics':'Econ','Computer Science':'CS'
+  };
+  document.querySelectorAll('.hpl-item').forEach(item => {
+    const labelEl = item.querySelector('.hpl-label');
+    if(!labelEl) return;
+    const text = labelEl.textContent.trim();
+    const subject = Object.keys(hplMap).find(k => hplMap[k] === text);
+    if(subject) item.style.display = selectedSubjects.has(subject) ? '' : 'none';
   });
 }
 
 async function loadSubjectSelection(){
+  const validSubjects = ['Mathematics','Physics','Chemistry','Economics','Computer Science'];
   if(currentUserId){
     try {
       const { data } = await supa.from('user_settings').select('selected_subjects').eq('user_id', currentUserId).single();
       if(data?.selected_subjects?.length){
-        selectedSubjects = new Set(data.selected_subjects);
-        localStorage.setItem('eco_selected_subjects', JSON.stringify(data.selected_subjects));
+        // Filter out Biology — it has no home card yet
+        const filtered = data.selected_subjects.filter(s => validSubjects.includes(s));
+        selectedSubjects = new Set(filtered);
+        localStorage.setItem('eco_selected_subjects', JSON.stringify(filtered));
         return;
       }
     } catch(e){}
   }
   const saved = localStorage.getItem('eco_selected_subjects');
   if(saved){
-    try { selectedSubjects = new Set(JSON.parse(saved)); } catch(e){}
+    try {
+      const parsed = JSON.parse(saved).filter(s => validSubjects.includes(s));
+      selectedSubjects = new Set(parsed);
+    } catch(e){}
   }
 }
 
