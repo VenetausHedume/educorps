@@ -657,12 +657,45 @@ body.mobile-bg #bg-canvas { display:none !important; }
 
 /* List */
 .list-grid { display:flex; flex-direction:column; gap:8px; }
-.drill-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; margin-top:8px; }
-.drill-card{ background:var(--card-bg); border:1.5px solid var(--border); border-radius:14px; padding:22px 18px; cursor:pointer; transition:transform .15s,border-color .15s,box-shadow .15s; display:flex; flex-direction:column; gap:8px; }
-.drill-card:hover{ transform:translateY(-3px); border-color:var(--accent); box-shadow:0 6px 24px rgba(0,224,255,.1); }
-.drill-card-icon{ font-size:1.6rem; line-height:1; }
-.drill-card-title{ font-family:var(--font-head); font-size:1.05rem; font-weight:700; letter-spacing:.01em; }
-.drill-card-sub{ font-size:.68rem; opacity:.45; text-transform:uppercase; letter-spacing:.09em; }
+.drill-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:18px; margin-top:8px; width:100%; }
+.drill-card{
+  border:2px solid var(--border);
+  border-radius:14px;
+  background:var(--card-bg);
+  backdrop-filter:blur(18px);
+  padding:30px 24px 24px;
+  cursor:pointer;
+  transition:all .28s;
+  position:relative; overflow:hidden;
+  animation:riseIn .65s ease both;
+}
+.drill-card:nth-child(1){animation-delay:.04s}
+.drill-card:nth-child(2){animation-delay:.10s}
+.drill-card:nth-child(3){animation-delay:.16s}
+.drill-card:nth-child(4){animation-delay:.22s}
+.drill-card:nth-child(5){animation-delay:.28s}
+.drill-card:hover{ border-color:var(--fg); background:var(--card-hover); transform:translateY(-5px); box-shadow:0 20px 60px rgba(0,0,0,.25); }
+[data-theme="light"] .drill-card{ border-color:rgba(26,24,18,.14); background:rgba(252,250,244,.9); box-shadow:1px 2px 8px rgba(26,24,18,.08); }
+[data-theme="light"] .drill-card:hover{ border-color:rgba(26,24,18,.45); background:rgba(235,232,222,.9); box-shadow:0 6px 20px rgba(26,24,18,.10); }
+.drill-card-num{ font-size:.65rem; letter-spacing:.25em; color:var(--grey); text-transform:uppercase; margin-bottom:20px; font-weight:700; }
+.drill-card-icon-wrap{
+  width:40px; height:40px; border:2px solid var(--border);
+  border-radius:10px; display:flex; align-items:center; justify-content:center;
+  margin-bottom:18px; transition:border-color .25s;
+}
+.drill-card:hover .drill-card-icon-wrap{ border-color:var(--fg); }
+[data-theme="light"] .drill-card-icon-wrap{ border-color:rgba(26,24,18,.18); background:rgba(26,24,18,.04); }
+.drill-card-icon-wrap svg{ width:18px; height:18px; stroke:var(--fg); fill:none; stroke-width:1.8; }
+.drill-card-title{ font-family:var(--font-head); font-size:1.05rem; font-weight:700; margin-bottom:6px; }
+.drill-card-sub{ color:var(--fg); opacity:.55; font-size:.75rem; line-height:1.5; }
+.drill-card-arrow{
+  position:absolute; bottom:20px; right:20px;
+  width:28px; height:28px; border:2px solid var(--border);
+  border-radius:50%; display:flex; align-items:center; justify-content:center; transition:all .22s;
+}
+.drill-card-arrow svg{ width:12px; height:12px; stroke:var(--fg); opacity:.6; transition:all .22s; fill:none; stroke-width:2; }
+.drill-card:hover .drill-card-arrow{ border-color:var(--fg); }
+.drill-card:hover .drill-card-arrow svg{ opacity:1; }
 .drill-breadcrumb{ display:flex; align-items:center; gap:8px; margin-bottom:18px; font-size:.75rem; opacity:.55; flex-wrap:wrap; }
 .drill-breadcrumb span{ cursor:pointer; transition:opacity .15s; }
 .drill-breadcrumb span:hover{ opacity:1; text-decoration:underline; }
@@ -4390,20 +4423,6 @@ body.mobile-bg { background:#000 !important; }
           <div class="aside-stat-lbl">Sessions</div>
         </div>
       </div>
-      <button class="ai-toggle-btn" onclick="toggleAI('papers-ai')">
-        <svg viewBox="0 0 24 24"><use href="#ic-ai"/></svg> Ask AI Assistant
-      </button>
-      <div class="ai-panel" id="papers-ai">
-        <div class="ai-box">
-          <div class="ai-msgs" id="papers-ai-msgs">
-            <div class="ai-msg bot">Select a paper to begin. Once you finish, I'll mark your responses in detail.</div>
-          </div>
-          <div class="ai-row">
-            <input class="ai-inp" id="papers-ai-in" placeholder="Ask about papers…" onkeydown="sendAI(event,'papers-ai-in','papers-ai-msgs')">
-            <button class="ai-send" onclick="sendAIBtn('papers-ai-in','papers-ai-msgs')"><svg viewBox="0 0 24 24"><use href="#ic-send"/></svg></button>
-          </div>
-        </div>
-      </div>
     </aside>
   </div>
 </div>
@@ -4849,7 +4868,10 @@ async function openSubject(name){
       .eq('subject', name)
       .order('paper_code', { ascending: true });
 
-    if(error) throw new Error(error.message || JSON.stringify(error));
+    if(error){
+      const msg = error.message || error.details || error.hint || JSON.stringify({code: error.code, msg: error.message});
+      throw new Error(msg);
+    }
     const papers = (data || []).map(row => ({
       id:           row.id,
       title:        row.title || (row.paper_code ? 'Paper ' + row.paper_code : 'Paper'),
@@ -4874,8 +4896,9 @@ async function openSubject(name){
     const sy = document.getElementById('papers-stat-years'); if(sy) sy.textContent = [...new Set(papers.map(p=>p.session))].filter(Boolean).length + ' sessions';
 
   } catch(e) {
-    const msg = e?.message || String(e);
-    console.error('Failed to load papers:', msg);
+    const msg = e?.message || e?.details || String(e);
+    console.error('Failed to load papers — raw error:', e);
+    console.error('Message:', msg);
     if(papersList) papersList.innerHTML = `<div style="padding:24px;opacity:.5;text-align:center">Could not load papers: ${msg}</div>`;
     if(pd) pd.textContent = 'Error loading papers';
   }
@@ -5778,13 +5801,10 @@ renderTopics(TOPICS);
 
 // ══ PAPERS ══
 // ══ PAPERS DRILL-DOWN ══
-// State for drill-down
-let _allPapers = [];       // all papers for current subject
-let _drillYear = null;     // selected year
-let _drillSession = null;  // selected session
-
+let _allPapers = [];
+let _drillYear = null;
+let _drillSession = null;
 const SESSION_ORDER = ['Feb/Mar','May/Jun','Oct/Nov'];
-const SESSION_ICONS = { 'Feb/Mar':'❄️', 'May/Jun':'🌸', 'Oct/Nov':'🍂' };
 
 function papersShowLevel(level){
   document.getElementById('papers-level-year').style.display    = level==='year'    ? '' : 'none';
@@ -5811,21 +5831,27 @@ function papersRenderYear(){
   _drillYear = null; _drillSession = null;
   const heading = document.getElementById('papers-heading');
   const sub     = document.getElementById('papers-sub');
-  if(heading) heading.textContent = 'Select Year';
-  if(sub)     sub.textContent     = 'choose a year to see available sessions';
+  if(heading) heading.textContent = 'Past Papers';
+  if(sub)     sub.textContent     = 'select a year to continue';
   document.getElementById('papers-back-lbl').textContent = currentSubject ? currentSubject.name : 'Back';
 
   const years = [...new Set(_allPapers.map(p=>p.year))].filter(Boolean).sort((a,b)=>b-a);
   const c = document.getElementById('year-cards');
   c.innerHTML = '';
-  years.forEach(y => {
-    const count = _allPapers.filter(p=>p.year===y).length;
-    const card  = document.createElement('div');
+  years.forEach((y, i) => {
+    const count    = _allPapers.filter(p=>p.year===y).length;
+    const sessions = [...new Set(_allPapers.filter(p=>p.year===y).map(p=>p.session))].filter(Boolean).length;
+    const card     = document.createElement('div');
     card.className = 'drill-card';
+    card.style.animationDelay = (0.04 + i * 0.06) + 's';
     card.innerHTML = `
-      <div class="drill-card-icon">📅</div>
+      <div class="drill-card-num">Year</div>
+      <div class="drill-card-icon-wrap">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
       <div class="drill-card-title">${y}</div>
-      <div class="drill-card-sub">${count} paper${count!==1?'s':''}</div>`;
+      <div class="drill-card-sub">${count} paper${count!==1?'s':''} · ${sessions} session${sessions!==1?'s':''}</div>
+      <div class="drill-card-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>`;
     card.onclick = () => papersRenderSession(y);
     c.appendChild(card);
   });
@@ -5836,16 +5862,22 @@ function papersRenderSession(year){
   _drillYear = year; _drillSession = null;
   const heading = document.getElementById('papers-heading');
   const sub     = document.getElementById('papers-sub');
-  if(heading) heading.textContent = year + ' — Select Session';
-  if(sub)     sub.textContent     = 'choose an exam session';
+  if(heading) heading.textContent = String(year);
+  if(sub)     sub.textContent     = 'select an exam session';
   document.getElementById('papers-back-lbl').textContent = String(year);
 
-  // Breadcrumb
   const bc = document.getElementById('session-breadcrumb');
   bc.innerHTML = `
     <span onclick="papersRenderYear()">${currentSubject ? currentSubject.name : 'Papers'}</span>
     <span class="sep">›</span>
     <span class="crumb-current">${year}</span>`;
+
+  const SESSION_ICONS_SVG = {
+    'Feb/Mar': `<svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>`,
+    'May/Jun': `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
+    'Oct/Nov': `<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+  };
+  const SESSION_LABELS = { 'Feb/Mar':'February / March', 'May/Jun':'May / June', 'Oct/Nov':'October / November' };
 
   const sessions = [...new Set(_allPapers.filter(p=>p.year===year).map(p=>p.session))]
     .filter(Boolean)
@@ -5853,14 +5885,17 @@ function papersRenderSession(year){
 
   const c = document.getElementById('session-cards');
   c.innerHTML = '';
-  sessions.forEach(sess => {
+  sessions.forEach((sess, i) => {
     const count = _allPapers.filter(p=>p.year===year && p.session===sess).length;
     const card  = document.createElement('div');
     card.className = 'drill-card';
+    card.style.animationDelay = (0.04 + i * 0.06) + 's';
     card.innerHTML = `
-      <div class="drill-card-icon">${SESSION_ICONS[sess]||'📄'}</div>
-      <div class="drill-card-title">${sess}</div>
-      <div class="drill-card-sub">${count} paper${count!==1?'s':''}</div>`;
+      <div class="drill-card-num">Session</div>
+      <div class="drill-card-icon-wrap">${SESSION_ICONS_SVG[sess] || `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>`}</div>
+      <div class="drill-card-title">${SESSION_LABELS[sess] || sess}</div>
+      <div class="drill-card-sub">${count} paper${count!==1?'s':''}</div>
+      <div class="drill-card-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>`;
     card.onclick = () => papersRenderList(year, sess);
     c.appendChild(card);
   });
