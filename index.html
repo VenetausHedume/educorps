@@ -3800,7 +3800,7 @@ body.mobile-bg { background:#000 !important; }
       Get Started — It's Free
       <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
     </button>
-    <div class="cta-note reveal reveal-delay-4">No account required · Open for all students</div>
+    <div class="cta-note reveal reveal-delay-4">Free for all IGCSE students · Sign up in seconds</div>
   </div>
 </section>
 
@@ -3836,8 +3836,6 @@ body.mobile-bg { background:#000 !important; }
         Sign In
       </span>
     </button>
-    <div class="divider"></div>
-    <button class="ghost-fill" onclick="doGuest()">Continue as Guest</button>
     <div class="login-links"><a href="#">Forgot password?</a><a href="#" onclick="goto('pg-register');return false">Register</a></div>
   </div>
 </div>
@@ -5675,7 +5673,6 @@ async function doLogin(){
     }
   } catch(e){ err.textContent = 'Login failed. Please try again.'; }
 }
-function doGuest(){ setUser('Guest'); goto('pg-subjects'); }
 async function doRegister(){
   const name  = document.getElementById('r-name').value.trim();
   const email = document.getElementById('r-email').value.trim();
@@ -5980,17 +5977,27 @@ function filterPapers(q){
 
 // ══ EXAM ══
 async function startExam(item, type){
+  // Ensure questions is always an array
+  if(!Array.isArray(item.questions)) item.questions = [];
   currentExam = {item, type}; currentQ = 0;
   answeredQs = new Set(); markedQs = new Set();
   questionTimes = []; questionScores = [];
   window._examImages = [];
   questionStartTime = Date.now();
   document.getElementById('exam-name').textContent = item.title;
-  document.getElementById('exam-detail').textContent = type==='paper' ? item.sub : item.sub+(selectedDifficulty?' · '+selectedDifficulty:'');
+  document.getElementById('exam-detail').textContent = type==='paper' ? (item.sub||'') : (item.sub||'')+(selectedDifficulty?' · '+selectedDifficulty:'');
   timerSecs = (item.duration||45)*60;
   updateTimerDisplay();
   renderQNav(item.questions);
-  loadQuestion(0);
+  if(item.questions.length > 0){
+    loadQuestion(0);
+  } else {
+    // No questions extracted yet — show a friendly message in the answer panel
+    document.getElementById('q-label').textContent = 'Not ready yet';
+    document.getElementById('q-marks').textContent = '—';
+    const hint = document.getElementById('q-hint');
+    if(hint) hint.textContent = 'This paper is being prepared. Questions will be available soon.';
+  }
   document.getElementById('result-box').classList.remove('open');
   updateProgress();
   startTimer();
