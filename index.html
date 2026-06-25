@@ -4452,13 +4452,13 @@ body.mobile-bg { background:#000 !important; }
   <!-- ── Two-column body: Question (left) | Answer + Nav (right) ── -->
   <div class="exam-body">
 
-    <!-- LEFT: scrollable question / paper panel -->
-    <div class="exam-main">
-      <div class="q-header">
-        <div class="q-label" id="q-label">Question 1 of 5</div>
-        <div class="q-text" id="q-text">Loading…</div>
-        <div class="q-marks" id="q-marks">[4 marks]</div>
+    <!-- LEFT: scrollable paper PDF -->
+    <div class="exam-main" style="padding:0;overflow:hidden;display:flex;flex-direction:column">
+      <div id="exam-pdf-loading" style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;opacity:.5">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#ic-file"/></svg>
+        <div style="font-size:13px">Loading paper…</div>
       </div>
+      <iframe id="exam-pdf-frame" style="width:100%;height:100%;border:0;flex:1;display:none" title="Past paper"></iframe>
     </div>
 
     <!-- RIGHT: answer box (top) + question nav (bottom) -->
@@ -4467,7 +4467,12 @@ body.mobile-bg { background:#000 !important; }
       <!-- Answer section — scrollable, fills available height -->
       <div class="exam-answer-section">
 
-        <div class="answer-mode-label">Answer</div>
+        <!-- Current question header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="answer-mode-label" id="q-label" style="margin:0">Question 1</div>
+          <span id="q-marks" style="background:rgba(0,224,255,.12);color:var(--accent);font-size:11px;padding:3px 9px;border-radius:8px;font-weight:600">— marks</span>
+        </div>
+        <div style="font-size:11px;color:var(--grey);margin-bottom:12px" id="q-hint">Read the question on the left, then upload your answer.</div>
 
         <!-- Upload only — no typing allowed -->
         <div class="upload-area" id="mode-upload"
@@ -4485,14 +4490,16 @@ body.mobile-bg { background:#000 !important; }
 
         <!-- Action buttons -->
         <div class="exam-action-row">
+          <button class="sec-btn" onclick="prevQuestion()">← Prev</button>
           <button class="mark-btn" onclick="markAnswer()">
             <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><use href="#ic-check"/></svg>Save</span>
           </button>
           <button class="sec-btn" onclick="nextQuestion()">Next →</button>
-          <button class="mark-btn finish-btn" onclick="submitAllAndFeedback()" id="finish-btn" style="display:none">
-            <span>★ Get Results</span>
-          </button>
         </div>
+
+        <button class="mark-btn finish-btn" onclick="submitAllAndFeedback()" id="finish-btn" style="width:100%;margin-top:8px">
+          <span>✓ Finish the paper</span>
+        </button>
 
         <!-- Per-question result -->
         <div class="result-box" id="result-box">
@@ -4869,7 +4876,8 @@ async function openSubject(name){
       .order('paper_code', { ascending: true });
 
     if(error){
-      const msg = error.message || error.details || error.hint || JSON.stringify({code: error.code, msg: error.message});
+      let msg = 'query failed';
+      try { msg = String(error.message || error.details || error.hint || error.code || 'query failed'); } catch(_){}
       throw new Error(msg);
     }
     const papers = (data || []).map(row => ({
@@ -4896,9 +4904,9 @@ async function openSubject(name){
     const sy = document.getElementById('papers-stat-years'); if(sy) sy.textContent = [...new Set(papers.map(p=>p.session))].filter(Boolean).length + ' sessions';
 
   } catch(e) {
-    const msg = e?.message || e?.details || String(e);
-    console.error('Failed to load papers — raw error:', e);
-    console.error('Message:', msg);
+    let msg = 'Unknown error';
+    try { msg = e?.message || e?.details || (typeof e === 'string' ? e : 'Could not load'); } catch(_){}
+    console.error('Failed to load papers:', msg);
     if(papersList) papersList.innerHTML = `<div style="padding:24px;opacity:.5;text-align:center">Could not load papers: ${msg}</div>`;
     if(pd) pd.textContent = 'Error loading papers';
   }
@@ -5971,7 +5979,7 @@ function filterPapers(q){
 }
 
 // ══ EXAM ══
-function startExam(item, type){
+async function startExam(item, type){
   currentExam = {item, type}; currentQ = 0;
   answeredQs = new Set(); markedQs = new Set();
   questionTimes = []; questionScores = [];
@@ -5984,18 +5992,47 @@ function startExam(item, type){
   renderQNav(item.questions);
   loadQuestion(0);
   document.getElementById('result-box').classList.remove('open');
-  document.getElementById('finish-btn').style.display = 'none';
   updateProgress();
   startTimer();
-  const total = item.questions.reduce((a,q)=>a+q.marks,0);
+  const total = item.questions.reduce((a,q)=>a+(q.marks||0),0);
   document.getElementById('exam-meta').innerHTML = `Paper: ${item.title}<br>Questions: ${item.questions.length}<br>Total marks: ${total}<br>Duration: ${item.duration||45} min`;
   goto('pg-exam');
+  // Load the paper PDF into the left panel
+  loadExamPDF(item);
+}
+
+async function loadExamPDF(item){
+  const frame   = document.getElementById('exam-pdf-frame');
+  const loading = document.getElementById('exam-pdf-loading');
+  if(!frame || !loading) return;
+  frame.style.display = 'none';
+  loading.style.display = 'flex';
+
+  if(!item.storage_path){
+    loading.innerHTML = '<div style="font-size:13px;opacity:.6">No paper PDF available</div>';
+    return;
+  }
+
+  try {
+    const { data, error } = await supa.storage
+      .from('educorps')
+      .createSignedUrl(item.storage_path, 3600);
+    if(error || !data?.signedUrl) throw new Error(error?.message || 'Could not load PDF');
+    frame.src = data.signedUrl + '#toolbar=1&view=FitH';
+    frame.onload = () => { loading.style.display='none'; frame.style.display='block'; };
+    // Fallback in case onload doesn't fire
+    setTimeout(() => { loading.style.display='none'; frame.style.display='block'; }, 1500);
+  } catch(e){
+    loading.innerHTML = `<div style="font-size:13px;opacity:.6">Could not load paper: ${e.message}</div>`;
+  }
 }
 function renderQNav(qs){
   const nav = document.getElementById('q-nav'); nav.innerHTML = '';
   qs.forEach((q,i) => {
     const d = document.createElement('div'); d.className = 'q-dot'+(i===0?' active':'');
-    d.id = 'qdot-'+i; d.textContent = i+1; d.onclick = () => loadQuestion(i);
+    d.id = 'qdot-'+i;
+    d.textContent = q.q || (i+1);
+    d.onclick = () => loadQuestion(i);
     nav.appendChild(d);
   });
 }
@@ -6007,21 +6044,41 @@ function loadQuestion(idx){
   questionStartTime = Date.now();
 
   const qs = currentExam.item.questions;
-  if(idx >= qs.length){ showToast('All questions — click Finish for results!'); document.getElementById('finish-btn').style.display=''; return; }
+  if(idx < 0) idx = 0;
+  if(idx >= qs.length) idx = qs.length - 1;
   currentQ = idx;
-  document.getElementById('q-label').textContent = `Question ${idx+1} of ${qs.length}`;
-  document.getElementById('q-text').textContent = qs[idx].q;
-  document.getElementById('q-marks').textContent = `[${qs[idx].marks} marks]`;
+  const q = qs[idx];
+
+  document.getElementById('q-label').textContent = `Question ${q.q || (idx+1)}`;
+  document.getElementById('q-marks').textContent = `${q.marks || 0} mark${(q.marks===1)?'':'s'}`;
+
   document.getElementById('result-box').classList.remove('open');
+
+  // Restore the saved image for this question if one exists
   const uploadPreview = document.getElementById('upload-preview');
-  if(uploadPreview) uploadPreview.innerHTML = '';
+  if(uploadPreview){
+    uploadPreview.innerHTML = '';
+    const saved = (window._examImages||[]).find(x => x.qIndex === idx);
+    if(saved){
+      const row = document.createElement('div'); row.className = 'up-file';
+      row.innerHTML = `<span>${saved.file.name}</span><button onclick="removeExamImage(${idx});this.parentElement.remove()">✕</button>`;
+      uploadPreview.appendChild(row);
+    }
+  }
+
   document.querySelectorAll('.q-dot').forEach((d,i) => {
     d.classList.toggle('active', i===idx);
     if(markedQs.has(i)) d.classList.add('done');
   });
-  if(idx === qs.length-1) document.getElementById('finish-btn').style.display = '';
 }
-function nextQuestion(){ loadQuestion(currentQ+1); }
+function prevQuestion(){ loadQuestion(currentQ-1); }
+function nextQuestion(){
+  if(currentQ >= currentExam.item.questions.length - 1){
+    showToast('Last question — click "Finish the paper" when ready');
+    return;
+  }
+  loadQuestion(currentQ+1);
+}
 function updateProgress(){
   document.getElementById('exam-progress').textContent = `${answeredQs.size} of ${currentExam.item.questions.length} answered`;
 }
