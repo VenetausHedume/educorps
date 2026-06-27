@@ -4853,10 +4853,9 @@ async function openSubject(name){
     const el=document.getElementById(id); if(el) el.textContent=s.name;
   });
 
-  // Notes and topics from hardcoded arrays (Step 3 — will migrate later)
-  const subjectNotes  = NOTES.filter(n=>n.subject===name);
+  // Notes — fetch live from Supabase, chapter-wise
+  loadSubjectNotes(name);
   const subjectTopics = TOPICS.filter(t=>t.title.toLowerCase().includes(name.toLowerCase().split(' ')[0].toLowerCase()));
-  renderNotes(subjectNotes);
   renderTopics(subjectTopics);
 
   // Papers — fetch live from Supabase
@@ -4910,7 +4909,6 @@ async function openSubject(name){
   }
 
   // Desc cards
-  const nd = document.getElementById('subj-notes-desc');  if(nd) nd.textContent = subjectNotes.length+' notes for '+name;
   const td = document.getElementById('subj-topics-desc'); if(td) td.textContent = subjectTopics.length+' topic sets to practise';
 
   // Progress page
@@ -5724,16 +5722,45 @@ function subjColor(s){
   return SUBJ_COLORS.default;
 }
 
+let _currentNotes = [];
+
+async function loadSubjectNotes(subject){
+  const c = document.getElementById('notes-list');
+  if(c) c.innerHTML = '<div style="opacity:.5;padding:10px 0;font-size:.8rem">Loading chapters…</div>';
+  try {
+    const { data, error } = await supa
+      .from('content')
+      .select('id, title, subject, year, storage_path')
+      .eq('type', 'note')
+      .eq('subject', subject)
+      .order('year', { ascending: true });
+    if(error) throw new Error(error.message || 'load failed');
+    _currentNotes = (data || []).map(n => ({
+      title:        n.title,
+      subject:      n.subject,
+      order:        n.year,
+      storage_path: n.storage_path,
+      ext:          (n.storage_path||'').toLowerCase().endsWith('.docx') ? 'docx' : 'pdf',
+    }));
+    renderNotes(_currentNotes);
+    const nd = document.getElementById('subj-notes-desc');
+    if(nd) nd.textContent = _currentNotes.length + ' chapters for ' + subject;
+  } catch(e){
+    if(c) c.innerHTML = `<div style="opacity:.5;padding:10px 0;font-size:.8rem">Could not load notes: ${e.message}</div>`;
+  }
+}
+
 function renderNotes(list){
   const c = document.getElementById('notes-list'); c.innerHTML = '';
   const lbl = document.getElementById('notes-count-lbl');
-  if(lbl) lbl.textContent = list.length + ' Note' + (list.length!==1?'s':'');
-  // Update stats
-  const sv = document.getElementById('notes-stat-total'); if(sv) sv.textContent = NOTES.length;
-  const ss = document.getElementById('notes-stat-subj');  if(ss) ss.textContent = [...new Set(NOTES.map(n=>n.subject))].length;
+  if(lbl) lbl.textContent = list.length + ' Chapter' + (list.length!==1?'s':'');
+  const sv = document.getElementById('notes-stat-total'); if(sv) sv.textContent = list.length;
+  const ss = document.getElementById('notes-stat-subj');  if(ss) ss.textContent = list.length ? '1' : '0';
   if(!list.length){ c.innerHTML='<div style="opacity:.5;padding:10px 0;font-size:.8rem">No notes found.</div>'; return; }
-  list.forEach(n => {
+  list.forEach((n, i) => {
     const col = subjColor(n.subject);
+    // Chapter number label — hide the 99/100 sort values used for refs/appendices
+    const chNum = (n.order && n.order < 90) ? n.order : '·';
     const d = document.createElement('div');
     d.className = 'list-item';
     d.style.cssText = `border-left:3px solid ${col}!important;padding-left:14px;`;
@@ -5743,24 +5770,29 @@ function renderNotes(list){
         <div class="li-title">${n.title}</div>
         <div class="li-meta" style="display:flex;align-items:center;gap:6px">
           <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${col};flex-shrink:0"></span>
-          ${n.subject}
+          ${n.subject} · ${n.ext.toUpperCase()}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span class="li-badge">${Math.ceil(n.body.split(' ').length/180)} min read</span>
+        <span class="li-badge">Ch ${chNum}</span>
         <div class="li-arrow"><svg width="16" height="16"><use href="#ic-arrow"/></svg></div>
       </div>`;
     c.appendChild(d);
   });
-  const r = document.getElementById('notes-recent'); r.innerHTML = '';
-  NOTES.slice(-4).reverse().forEach(n => {
-    const d = document.createElement('div'); d.className = 'recent-item';
-    d.textContent = n.title; d.onclick = () => openNote(n); r.appendChild(d);
-  });
+  const r = document.getElementById('notes-recent');
+  if(r){
+    r.innerHTML = '';
+    list.slice(0,4).forEach(n => {
+      const d = document.createElement('div'); d.className = 'recent-item';
+      d.textContent = n.title; d.onclick = () => openNote(n); r.appendChild(d);
+    });
+  }
 }
-function openNote(n){
+
+async function openNote(n){
   const col = subjColor(n.subject);
-  document.getElementById('note-view').innerHTML = `
+  const view = document.getElementById('note-view');
+  view.innerHTML = `
     <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:18px">
       <div class="note-name">${n.title}</div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
@@ -5768,10 +5800,49 @@ function openNote(n){
         <span class="note-subject-pill">${n.subject}</span>
       </div>
     </div>
-    <div class="note-body">${n.body}</div>`;
+    <div style="opacity:.5;font-size:.85rem;padding:20px 0">Loading chapter…</div>`;
+
+  try {
+    const { data, error } = await supa.storage
+      .from('educorps')
+      .createSignedUrl(n.storage_path, 3600);
+    if(error || !data?.signedUrl) throw new Error(error?.message || 'Could not load');
+
+    if(n.ext === 'pdf'){
+      view.innerHTML = `
+        <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:14px">
+          <div class="note-name">${n.title}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col}"></span>
+            <span class="note-subject-pill">${n.subject}</span>
+          </div>
+        </div>
+        <iframe src="${data.signedUrl}#view=FitH" style="width:100%;height:72vh;border:1px solid var(--border);border-radius:10px" title="${n.title}"></iframe>`;
+    } else {
+      // DOCX — can't render inline, offer download/open
+      view.innerHTML = `
+        <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:18px">
+          <div class="note-name">${n.title}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col}"></span>
+            <span class="note-subject-pill">${n.subject}</span>
+          </div>
+        </div>
+        <div style="padding:40px 20px;text-align:center;border:1px dashed var(--border);border-radius:12px">
+          <div style="font-size:.9rem;margin-bottom:16px;opacity:.7">This chapter is a Word document.</div>
+          <a href="${data.signedUrl}" target="_blank" rel="noopener" class="fill-btn" style="display:inline-flex;text-decoration:none;padding:10px 20px">
+            <span>Open chapter ↗</span>
+          </a>
+        </div>`;
+    }
+  } catch(e){
+    view.innerHTML += `<div style="opacity:.5;font-size:.85rem;padding:10px 0">Could not load: ${e.message}</div>`;
+  }
 }
-function filterNotes(q){ renderNotes(NOTES.filter(n => n.title.toLowerCase().includes(q.toLowerCase()) || n.body.toLowerCase().includes(q.toLowerCase()))); }
-renderNotes(NOTES);
+
+function filterNotes(q){
+  renderNotes(_currentNotes.filter(n => n.title.toLowerCase().includes(q.toLowerCase())));
+}
 
 // ══ TOPICS ══
 const TOPIC_ACCENTS = ['#00e0ff','#7c3aed','#4ade80','#e8307e','#f59e0b','#60a5fa'];
@@ -5951,7 +6022,8 @@ function renderPapers(list){
     const boardBadge = variant ? 'P' + variant[0] : 'P';
     const marks      = Array.isArray(p.questions) && p.questions.length > 0
       ? p.questions.reduce((s,q)=>s+(q.marks||0),0) : null;
-    const duration   = p.duration ? p.duration + ' min' : '';
+    const durMins    = getPaperDuration(p.subject, p.paper_code);
+    const duration   = durMins ? durMins + ' min' : '';
     d.innerHTML = `
       <div class="paper-item-header">
         <span class="paper-board-badge">${boardBadge}</span>
@@ -5973,6 +6045,39 @@ function filterPapers(q){
   items.forEach(item => {
     item.style.display = item.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none';
   });
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXAM DURATIONS — minutes per paper, by subject + paper number
+// ══════════════════════════════════════════════════════════
+// Paper number = first digit of the variant (e.g. 0580/42 → paper 4)
+function getPaperDuration(subject, paperCode){
+  if(!paperCode || !paperCode.includes('/')) return 75; // sensible default
+  const variant  = paperCode.split('/')[1];
+  const paperNum = variant[0];
+
+  // Mathematics 0580 — P1 & P2 both 2h30 (150 min)
+  if(subject === 'Mathematics'){
+    if(paperNum === '1' || paperNum === '2') return 150;
+    if(paperNum === '3' || paperNum === '4') return 150; // extended written also long
+    return 150;
+  }
+  // Physics 0625 & Chemistry 0620
+  if(subject === 'Physics' || subject === 'Chemistry'){
+    if(paperNum === '3' || paperNum === '4') return 75;  // 1h15
+    if(paperNum === '5' || paperNum === '6') return 45;  // 45 min
+    return 75; // fallback
+  }
+  // Economics 0455 — P2 written = 2h15 (135 min)
+  if(subject === 'Economics'){
+    if(paperNum === '2') return 135;
+    return 135;
+  }
+  // Computer Science 0478 — P1 & P2 both 1h15 (75 min)
+  if(subject === 'Computer Science'){
+    return 75;
+  }
+  return 75;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -6069,7 +6174,12 @@ async function startExam(item, type){
   questionStartTime = Date.now();
   document.getElementById('exam-name').textContent = item.title;
   document.getElementById('exam-detail').textContent = type==='paper' ? (item.sub||'') : (item.sub||'')+(selectedDifficulty?' · '+selectedDifficulty:'');
-  timerSecs = (item.duration||45)*60;
+  // Determine duration from subject + paper code
+  const examDuration = (type === 'paper')
+    ? getPaperDuration(item.subject, item.paper_code)
+    : (item.duration || 45);
+  item.duration = examDuration;
+  timerSecs = examDuration * 60;
   updateTimerDisplay();
   renderQNav(item.questions);
   if(item.questions.length > 0){
@@ -6085,7 +6195,7 @@ async function startExam(item, type){
   updateProgress();
   startTimer();
   const total = item.questions.reduce((a,q)=>a+(q.marks||0),0);
-  document.getElementById('exam-meta').innerHTML = `Paper: ${item.title}<br>Questions: ${item.questions.length}<br>Total marks: ${total}<br>Duration: ${item.duration||45} min`;
+  document.getElementById('exam-meta').innerHTML = `Paper: ${item.title}<br>Questions: ${item.questions.length}<br>Total marks: ${total}<br>Duration: ${examDuration} min`;
   goto('pg-exam');
   // Load the paper PDF into the left panel
   loadExamPDF(item);
