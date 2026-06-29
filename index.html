@@ -4,48 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>EduCorps</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700;800&family=Caveat:wght@500;600;700&family=Sacramento&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Patrick+Hand&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-/* ══ THEMES ══ */
+/* ══ THEMES — Notebook (warm = dark slot, cool = light slot) ══ */
 [data-theme="dark"] {
-  --bg:         #000000;
-  --fg:         #ffffff;
-  --grey:       #aaaaaa;
-  --border:     rgba(255,255,255,.22);
-  --card-bg:    rgba(255,255,255,.05);
-  --card-hover: rgba(255,255,255,.10);
-  --accent:     #ffffff;
+  /* WARM notebook palette */
+  --paper:#fbf6ea; --paper2:#f4ead2; --ink:#4a3f35; --inkSoft:#857762;
+  --head:#c0473b; --hi:#ffd24a; --accent:#e0892b; --rule:#ece0c4;
+  --margin:#eab5ad; --sticky:#ffe49c; --sticky2:#ffd0a0; --shadow:rgba(120,90,40,.18);
+  /* mapped legacy names */
+  --bg:#fbf6ea; --fg:#4a3f35; --grey:#857762;
+  --border:#4a3f35; --card-bg:#fbf6ea; --card-hover:#f4ead2;
 }
 [data-theme="light"] {
-  --bg:         #f7f4ee;
-  --fg:         #1a1a18;
-  --grey:       #6b6860;
-  --border:     rgba(26,24,18,.16);
-  --card-bg:    rgba(255,255,250,.72);
-  --card-hover: rgba(235,232,222,.85);
-  --accent:     #1a1a18;
-  --paper:      #f7f4ee;
-  --rule:       rgba(140,130,110,.12);
-  --ink:        #1a1a18;
+  /* COOL notebook palette */
+  --paper:#f3f7fb; --paper2:#e4eef7; --ink:#1f3140; --inkSoft:#5d7184;
+  --head:#1b6fc0; --hi:#86d9f2; --accent:#0e9bb0; --rule:#d9e6f2;
+  --margin:#7fb0e0; --sticky:#c3e3f7; --sticky2:#9fdfe0; --shadow:rgba(30,70,120,.18);
+  /* mapped legacy names */
+  --bg:#f3f7fb; --fg:#1f3140; --grey:#5d7184;
+  --border:#1f3140; --card-bg:#f3f7fb; --card-hover:#e4eef7;
 }
 
-/* ══ TYPOGRAPHY MODES ══ */
-/* DARK = Barlow bold. LIGHT = Caveat cursive only */
-[data-theme="dark"] body { font-family:'Barlow', sans-serif; font-weight:600; letter-spacing:.02em; }
-[data-theme="light"] body { font-family:'Caveat', cursive; font-weight:600; }
+/* ══ TYPOGRAPHY — notebook fonts both themes ══ */
+body { font-family:'Gaegu','Patrick Hand',cursive; font-weight:400; letter-spacing:0; }
+[data-theme="dark"] body,
+[data-theme="light"] body { font-family:'Gaegu','Patrick Hand',cursive; font-weight:400; }
 
 html {
   font-size: clamp(14px, 1.1vw, 17px); /* fluid base: small on mobile, comfortable on desktop */
 }
 html, body {
   width:100%; height:100%;
-  background:var(--bg);
-  color:var(--fg);
+  background:var(--paper);
+  color:var(--ink);
   overflow:hidden;
-  cursor:none;
   transition:background .5s, color .5s;
+  background-image:linear-gradient(var(--rule) 1px,transparent 1px);
+  background-size:100% 30px;
+  background-position:0 64px;
 }
 
 /* ══ DARK: display headings = Caveat (handwritten/notebook) ══ */
@@ -186,29 +185,19 @@ html, body {
 [data-theme="light"] .subj-card-stat { font-size:0.9rem !important; }
 
 /* ══ CURSOR ══ */
-#cursor {
+#cursor, #cursor-trail { display:none !important; }
+#cursor-hidden-old {
   position:fixed; width:11px; height:11px;
   border:2px solid var(--fg); border-radius:50%;
   pointer-events:none; z-index:9999;
   transform:translate(-50%,-50%);
-  transition:width .18s, height .18s, background .18s, border-color .18s;
 }
-#cursor-trail {
-  position:fixed; width:32px; height:32px;
-  border:1px solid rgba(255,255,255,.2); border-radius:50%;
-  pointer-events:none; z-index:9998;
-  transform:translate(-50%,-50%);
-  transition:left .11s ease, top .11s ease;
-}
-[data-theme="light"] #cursor { border-color:#1a1a18; }
-[data-theme="light"] #cursor-trail { border-color:rgba(26,24,18,.18); }
 .ch { width:24px!important; height:24px!important; background:rgba(255,255,255,.1)!important; }
 [data-theme="light"] .ch { background:rgba(26,24,18,.08)!important; }
 
 /* ══ BACKGROUNDS ══ */
 #bg-canvas {
-  position:fixed; inset:0; z-index:0;
-  display:block;
+  display:none !important;
 }
 
 /* ══ PAGES ══ */
@@ -231,7 +220,7 @@ html, body {
   background:var(--card-bg);
   backdrop-filter:blur(12px);
   display:flex; align-items:center; justify-content:center;
-  cursor:none; transition:all .25s;
+  cursor:pointer; transition:all .25s;
   color:var(--fg);
 }
 #theme-btn:hover { background:var(--card-hover); border-color:var(--fg); }
@@ -251,7 +240,7 @@ html, body {
 [data-theme="light"] .top-bar { background:rgba(247,244,238,.97); border-bottom:1px solid rgba(120,108,85,.2); }
 
 .top-logo {
-  font-size:1.4rem; cursor:none;
+  font-size:1.4rem; cursor:pointer;
   transition:opacity .2s;
 }
 .top-logo:hover { opacity:.7; }
@@ -273,7 +262,7 @@ html, body {
   color:var(--fg); opacity:.8;
   font-size:.6rem;
   letter-spacing:.14em; text-transform:uppercase;
-  padding:6px 16px; cursor:none;
+  padding:6px 16px; cursor:pointer;
   transition:all .22s;
   display:flex; align-items:center; gap:6px;
 }
@@ -338,29 +327,31 @@ body.mobile-bg #bg-canvas { display:none !important; }
 #pg-login { display:flex; align-items:center; justify-content:center; }
 .login-wrap {
   width:380px;
-  border:2px solid var(--border);
+  border:2px solid var(--ink);
   border-radius:16px;
-  background:rgba(0,0,0,.75);
-  backdrop-filter:blur(32px);
+  background:var(--paper);
+  backdrop-filter:none;
   padding:52px 44px 42px;
+  box-shadow:5px 6px 0 var(--shadow);
   animation:riseIn .9s ease both;
+  position:relative;
 }
-[data-theme="light"] .login-wrap { background:rgba(252,250,244,.97); box-shadow:2px 4px 24px rgba(26,24,18,.10); border-color:rgba(26,24,18,.14); border-left:3px solid rgba(185,80,80,.25); }
+[data-theme="light"] .login-wrap { background:var(--paper); box-shadow:5px 6px 0 var(--shadow); border-color:var(--ink); border-left:2px solid var(--ink); }
 
-.login-brand { margin-bottom:4px; color:var(--fg); }
-[data-theme="dark"] .login-brand { color:#fff; text-shadow:0 0 40px rgba(255,255,255,.25); }
-[data-theme="light"] .login-brand { color:#1a1a18; }
+.login-brand { margin-bottom:4px; color:var(--head); font-family:'Caveat',cursive; }
+[data-theme="dark"] .login-brand { color:var(--head); text-shadow:none; }
+[data-theme="light"] .login-brand { color:var(--head); }
 
-.login-tagline { color:var(--grey); opacity:.8; margin-bottom:40px; }
-[data-theme="dark"] .login-tagline { color:#aaa; }
-[data-theme="light"] .login-tagline { color:#6b6860; }
+.login-tagline { color:var(--inkSoft); opacity:.9; margin-bottom:40px; font-family:'Patrick Hand',cursive; }
+[data-theme="dark"] .login-tagline { color:var(--inkSoft); }
+[data-theme="light"] .login-tagline { color:var(--inkSoft); }
 
 .fl { margin-bottom:22px; }
 .fl label { display:block; text-transform:uppercase; color:var(--grey); margin-bottom:8px; }
 .fl input {
   width:100%; background:transparent;
   border:none; border-bottom:2px solid var(--border);
-  color:var(--fg); padding:8px 0 10px; outline:none; cursor:none;
+  color:var(--fg); padding:8px 0 10px; outline:none; cursor:pointer;
   transition:border-color .25s;
 }
 .fl input:focus { border-bottom-color:var(--fg); }
@@ -374,7 +365,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   border:2px solid var(--fg);
   border-radius:10px; color:var(--fg);
   text-transform:uppercase;
-  cursor:none; position:relative; overflow:hidden; transition:color .3s;
+  cursor:pointer; position:relative; overflow:hidden; transition:color .3s;
 }
 .fill-btn::before {
   content:''; position:absolute; inset:0;
@@ -394,12 +385,12 @@ body.mobile-bg #bg-canvas { display:none !important; }
   width:100%; padding:10px; background:transparent;
   border:1px solid var(--border); border-radius:10px;
   color:var(--grey); text-transform:uppercase;
-  cursor:none; transition:all .22s;
+  cursor:pointer; transition:all .22s;
   font-size:.7rem; letter-spacing:.1em;
 }
 .ghost-fill:hover { color:var(--fg); border-color:var(--fg); }
 .login-links { margin-top:18px; display:flex; justify-content:space-between; font-size:.65rem; color:var(--grey); }
-.login-links a { color:var(--grey); text-decoration:none; cursor:none; transition:color .2s; }
+.login-links a { color:var(--grey); text-decoration:none; cursor:pointer; transition:color .2s; }
 .login-links a:hover { color:var(--fg); }
 
 
@@ -479,7 +470,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 /* api-step-desc inherits */
 .api-step-link {
   display:inline-flex; align-items:center; gap:4px;
-  color:var(--fg); opacity:.7; text-decoration:none; cursor:none;
+  color:var(--fg); opacity:.7; text-decoration:none; cursor:pointer;
   transition:opacity .2s; margin-top:5px;
 }
 [data-theme="dark"] .api-step-link { font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
@@ -500,14 +491,14 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .api-key-wrap:focus-within { border-bottom-color:var(--fg); }
 .api-key-inp {
   flex:1; background:transparent; border:none; outline:none;
-  color:var(--fg); padding:8px 0 10px; cursor:none;
+  color:var(--fg); padding:8px 0 10px; cursor:pointer;
   font-family:'Barlow',monospace; font-size:.88rem; letter-spacing:.04em;
 }
 [data-theme="light"] .api-key-inp { font-size:1.1rem; }
 .api-key-inp::placeholder { color:var(--grey); opacity:.35; }
 .api-key-toggle {
   background:transparent; border:none; color:var(--grey);
-  cursor:none; padding:4px 0 4px 8px; opacity:.6; transition:opacity .2s;
+  cursor:pointer; padding:4px 0 4px 8px; opacity:.6; transition:opacity .2s;
 }
 .api-key-toggle:hover { opacity:1; }
 .api-key-toggle svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; display:block; }
@@ -516,7 +507,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   text-align:center; margin-top:12px;
 }
 .api-skip a {
-  color:var(--grey); opacity:.55; cursor:none; transition:opacity .2s;
+  color:var(--grey); opacity:.55; cursor:pointer; transition:opacity .2s;
   text-decoration:none;
 }
 [data-theme="dark"] .api-skip a { font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
@@ -558,7 +549,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   background:var(--card-bg);
   backdrop-filter:blur(18px);
   padding:34px 28px 28px;
-  cursor:none;
+  cursor:pointer;
   transition:all .28s;
   position:relative; overflow:hidden;
   animation:riseIn .65s ease both;
@@ -596,7 +587,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   border:2px solid var(--border); border-radius:30px;
   color:var(--fg);
   text-transform:uppercase;
-  cursor:none; transition:all .26s; position:relative; overflow:hidden;
+  cursor:pointer; transition:all .26s; position:relative; overflow:hidden;
   animation:riseIn .65s .22s ease both;
 }
 .qm-pill::before {
@@ -647,7 +638,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .search-input {
   width:100%; background:var(--card-bg);
   border:2px solid var(--border); border-radius:10px;
-  color:var(--fg); padding:10px 14px 10px 38px; outline:none; cursor:none;
+  color:var(--fg); padding:10px 14px 10px 38px; outline:none; cursor:pointer;
   transition:border-color .22s; font-size:.75rem;
 }
 .search-input:focus { border-color:var(--fg); }
@@ -704,7 +695,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .list-item {
   border:2px solid var(--border); border-radius:12px;
   background:var(--card-bg); padding:16px 18px;
-  cursor:none; transition:all .22s;
+  cursor:pointer; transition:all .22s;
   display:flex; align-items:center; justify-content:space-between;
 }
 .list-item:hover { border-color:var(--fg); background:var(--card-hover); }
@@ -749,7 +740,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   padding:10px 16px; background:transparent;
   border:2px solid var(--border); border-radius:10px;
   color:var(--fg); opacity:.75;
-  text-transform:uppercase; cursor:none;
+  text-transform:uppercase; cursor:pointer;
   transition:all .22s; width:100%;
   font-size:.65rem; font-weight:700; letter-spacing:.1em;
 }
@@ -779,12 +770,12 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .ai-row { display:flex; border-top:1px solid var(--border); }
 .ai-inp {
   flex:1; background:transparent; border:none; outline:none;
-  color:var(--fg); padding:10px 12px; cursor:none;
+  color:var(--fg); padding:10px 12px; cursor:pointer;
 }
 .ai-inp::placeholder { color:var(--grey); opacity:.4; }
 .ai-send {
   background:transparent; border:none; border-left:1px solid var(--border);
-  color:var(--fg); opacity:.6; padding:0 12px; cursor:none; transition:opacity .2s;
+  color:var(--fg); opacity:.6; padding:0 12px; cursor:pointer; transition:opacity .2s;
   display:flex; align-items:center;
 }
 .ai-send:hover { opacity:1; }
@@ -794,7 +785,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .diff-pills { display:flex; flex-direction:column; gap:6px; }
 .diff-pill {
   border:2px solid var(--border); border-radius:8px;
-  padding:10px 14px; cursor:none; transition:all .2s;
+  padding:10px 14px; cursor:pointer; transition:all .2s;
   display:flex; align-items:center; justify-content:space-between;
   color:var(--fg); opacity:.65; letter-spacing:.05em;
 }
@@ -806,7 +797,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .year-tag {
   padding:5px 12px;
   border:2px solid var(--border); border-radius:20px;
-  color:var(--fg); opacity:.65; cursor:none; transition:all .2s;
+  color:var(--fg); opacity:.65; cursor:pointer; transition:all .2s;
 }
 .year-tag:hover, .year-tag.active { opacity:1; border-color:var(--fg); }
 [data-theme="light"] .year-tag { border-color:rgba(26,24,18,.18); color:#1a1a18; }
@@ -817,7 +808,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .recent-item {
   color:var(--fg); opacity:.6;
   padding:5px 0; border-bottom:1px solid var(--border);
-  cursor:none; transition:opacity .2s; line-height:1.5;
+  cursor:pointer; transition:opacity .2s; line-height:1.5;
 }
 .recent-item:hover { opacity:1; }
 /* recent-item inherits */
@@ -918,7 +909,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .mode-tab {
   text-transform:uppercase; padding:8px 20px;
   background:transparent; border:none; color:var(--fg); opacity:.55;
-  cursor:none; transition:all .2s;
+  cursor:pointer; transition:all .2s;
 }
 .mode-tab.active { background:var(--card-hover); opacity:1; }
 .mode-tab:hover { opacity:.9; }
@@ -934,14 +925,14 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .ans-textarea {
   width:100%; min-height:180px; background:transparent;
   border:none; outline:none; resize:vertical; color:var(--fg);
-  line-height:1.9; cursor:none;
+  line-height:1.9; cursor:pointer;
 }
 .ans-textarea::placeholder { color:var(--grey); opacity:.4; }
 /* ans-textarea inherits */
 
 .upload-area {
   border:2px dashed var(--border); border-radius:12px;
-  padding:28px; text-align:center; cursor:none;
+  padding:28px; text-align:center; cursor:pointer;
   transition:all .26s; color:var(--grey);
   animation:riseIn .4s .08s ease both;
   display:flex; flex-direction:column; align-items:center; gap:10px;
@@ -952,7 +943,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .upload-area-sub { font-size:.6rem; opacity:.5; }
 /* upload-area-sub inherits */
 .up-file { display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border:1px solid var(--border); border-radius:7px; width:100%; }
-.up-file button { background:transparent; border:none; color:var(--grey); cursor:none; transition:color .2s; }
+.up-file button { background:transparent; border:none; color:var(--grey); cursor:pointer; transition:color .2s; }
 .up-file button:hover { color:var(--fg); }
 .both-area { display:flex; flex-direction:column; gap:12px; animation:riseIn .4s .08s ease both; }
 
@@ -960,7 +951,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .mark-btn {
   padding:13px 28px; background:transparent;
   border:2px solid var(--fg); border-radius:10px; color:var(--fg);
-  text-transform:uppercase; cursor:none; position:relative; overflow:hidden;
+  text-transform:uppercase; cursor:pointer; position:relative; overflow:hidden;
   transition:color .3s; animation:riseIn .4s .15s ease both;
 }
 .mark-btn::before { content:''; position:absolute; inset:0; background:var(--fg); transform:translateX(-101%); transition:transform .3s ease; z-index:0; }
@@ -973,7 +964,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .sec-btn {
   padding:13px 22px; background:transparent;
   border:2px solid var(--border); border-radius:10px; color:var(--fg);
-  opacity:.75; text-transform:uppercase; cursor:none; transition:all .22s;
+  opacity:.75; text-transform:uppercase; cursor:pointer; transition:all .22s;
 }
 .sec-btn:hover { opacity:1; border-color:var(--fg); }
 [data-theme="light"] .sec-btn { border-color:rgba(26,24,18,.2); color:#6b6860; }
@@ -996,7 +987,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 .q-dot {
   width:32px; height:32px; border:2px solid var(--border); border-radius:7px;
   display:flex; align-items:center; justify-content:center;
-  cursor:none; transition:all .2s; color:var(--fg); opacity:.55; font-size:.65rem; font-weight:700;
+  cursor:pointer; transition:all .2s; color:var(--fg); opacity:.55; font-size:.65rem; font-weight:700;
 }
 .q-dot:hover { border-color:var(--fg); opacity:1; }
 .q-dot.active { border-color:var(--fg); opacity:1; background:var(--card-hover); }
@@ -1030,7 +1021,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   width:100%; min-height:70px; background:transparent;
   border:none; border-bottom:2px solid var(--border);
   color:var(--fg); line-height:1.8;
-  outline:none; resize:none; padding:6px 0; cursor:none;
+  outline:none; resize:none; padding:6px 0; cursor:pointer;
   transition:border-color .22s;
 }
 .qm-ta:focus { border-bottom-color:var(--fg); }
@@ -1039,7 +1030,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
 [data-theme="light"] .qm-ta:focus { border-bottom-color:#00b4d8; }
 .qm-upload {
   border:2px dashed var(--border); border-radius:10px; padding:22px;
-  text-align:center; cursor:none; transition:all .25s;
+  text-align:center; cursor:pointer; transition:all .25s;
   color:var(--fg); opacity:.65;
   display:flex; flex-direction:column; align-items:center; gap:8px;
 }
@@ -1717,7 +1708,7 @@ body.mobile-bg #bg-canvas { display:none !important; }
   border:2px solid var(--border);
   border-radius:14px;
   padding:16px 16px 14px;
-  cursor:none;
+  cursor:pointer;
   transition:all .22s;
   display:flex; flex-direction:column; gap:6px;
   background:var(--card-bg);
@@ -1780,7 +1771,7 @@ nav {
 [data-theme="light"] nav { background:rgba(255,255,255,.9); }
 
 
-.nav-logo { cursor:none; letter-spacing:.08em; transition:opacity .2s; }
+.nav-logo { cursor:pointer; letter-spacing:.08em; transition:opacity .2s; }
 
 
 [data-theme="dark"] .nav-logo { font-family:'Caveat',cursive; font-size:1.9rem; font-weight:700; color:#fff; }
@@ -1795,7 +1786,7 @@ nav {
 .nav-links { display:flex; align-items:center; gap:36px; list-style:none; }
 
 
-.nav-links a { text-decoration:none; color:var(--fg); opacity:.65; cursor:none; transition:opacity .2s; }
+.nav-links a { text-decoration:none; color:var(--fg); opacity:.65; cursor:pointer; transition:opacity .2s; }
 
 
 [data-theme="dark"] .nav-links a { font-size:.68rem; letter-spacing:.15em; text-transform:uppercase; }
@@ -1812,7 +1803,7 @@ nav {
 
 .nav-cta {
   padding:9px 26px; border:2px solid var(--fg); border-radius:30px;
-  background:transparent; color:var(--fg); cursor:none; transition:all .28s;
+  background:transparent; color:var(--fg); cursor:pointer; transition:all .28s;
   position:relative; overflow:hidden;
 }
 
@@ -1890,7 +1881,7 @@ section { min-height:100vh; display:flex; flex-direction:column; align-items:cen
 .hero-actions { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:48px; opacity:0; animation:fadeUp .9s .65s ease forwards; }
 
 
-.btn-primary { padding:16px 42px; background:var(--fg); color:var(--bg); border:none; border-radius:12px; cursor:none; transition:all .28s; }
+.btn-primary { padding:16px 42px; background:var(--fg); color:var(--bg); border:none; border-radius:12px; cursor:pointer; transition:all .28s; }
 
 
 [data-theme="dark"] .btn-primary { font-family:'Barlow',sans-serif; font-weight:900; font-size:.78rem; letter-spacing:.26em; text-transform:uppercase; }
@@ -1905,7 +1896,7 @@ section { min-height:100vh; display:flex; flex-direction:column; align-items:cen
 [data-theme="light"] .btn-primary:hover { box-shadow:0 20px 50px rgba(0,0,0,.18); }
 
 
-.btn-ghost { padding:16px 38px; background:transparent; color:var(--fg); border:2px solid var(--border); border-radius:12px; cursor:none; transition:all .28s; }
+.btn-ghost { padding:16px 38px; background:transparent; color:var(--fg); border:2px solid var(--border); border-radius:12px; cursor:pointer; transition:all .28s; }
 
 
 [data-theme="dark"] .btn-ghost { font-family:'Barlow',sans-serif; font-weight:800; font-size:.78rem; letter-spacing:.22em; text-transform:uppercase; }
@@ -1917,7 +1908,7 @@ section { min-height:100vh; display:flex; flex-direction:column; align-items:cen
 .btn-ghost:hover { border-color:var(--fg); background:var(--card-hover); }
 
 
-.hero-scroll { position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; opacity:0; animation:fadeUp .9s 1s ease forwards; cursor:none; }
+.hero-scroll { position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; opacity:0; animation:fadeUp .9s 1s ease forwards; cursor:pointer; }
 
 
 [data-theme="dark"] .hero-scroll span { font-size:.5rem; letter-spacing:.24em; text-transform:uppercase; color:var(--grey); }
@@ -2431,7 +2422,7 @@ section { min-height:100vh; display:flex; flex-direction:column; align-items:cen
 
 .plan-btn {
   width:100%; padding:16px; border:2px solid var(--fg); border-radius:14px;
-  background:transparent; color:var(--fg); cursor:none; transition:all .3s;
+  background:transparent; color:var(--fg); cursor:pointer; transition:all .3s;
   position:relative; overflow:hidden;
 }
 
@@ -2497,7 +2488,7 @@ section { min-height:100vh; display:flex; flex-direction:column; align-items:cen
 
 .cta-btn {
   padding:20px 58px; background:var(--fg); color:var(--bg);
-  border:none; border-radius:16px; cursor:none; transition:all .3s;
+  border:none; border-radius:16px; cursor:pointer; transition:all .3s;
   display:inline-flex; align-items:center; gap:12px;
 }
 
@@ -2881,16 +2872,41 @@ body.mobile-bg { background:#000 !important; }
 
 
 /* Landing page container overrides */
-#pg-landing {
-  cursor: none;
-}
-#pg-landing nav {
-  position: sticky;
-  top: 0;
-}
+/* ══ NOTEBOOK ANIMATIONS ══ */
+@keyframes floatY{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-10px) rotate(var(--r,0deg))}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes iconBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+@keyframes revealUp{from{opacity:0;transform:translateY(34px)}to{opacity:1;transform:translateY(0)}}
+@keyframes revealLeft{from{opacity:0;transform:translateX(-48px)}to{opacity:1;transform:none}}
+@keyframes revealRight{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:none}}
+@keyframes revealPop{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+.nb-reveal{animation:revealUp .8s both}
+.nb-reveal-left{animation:revealLeft .85s both}
+.nb-reveal-right{animation:revealRight .85s both}
+.nb-reveal-pop{animation:revealPop .7s both}
+/* JS adds .nb-in when scrolled into view */
+.nb-watch{opacity:0}
+.nb-watch.nb-in{opacity:1;animation:revealUp .7s both}
+.nb-watch-pop{opacity:0}
+.nb-watch-pop.nb-in{opacity:1;animation:revealPop .65s both}
+.nb-bob{animation:iconBob 3.6s ease-in-out infinite}
+.nb-float{animation:floatY 5s ease-in-out infinite}
+.nb-card-hover{transition:transform .16s,box-shadow .16s}
+.nb-card-hover:hover{transform:translateY(-6px) rotate(0deg) !important;box-shadow:4px 9px 0 var(--shadow) !important}
+@media(prefers-reduced-motion:reduce){.nb-reveal,.nb-reveal-left,.nb-reveal-right,.nb-reveal-pop{animation:none}}
+@media(max-width:760px){ .login-doodle{ display:none !important; } }
+
+/* old landing nav/section rules removed during reskin */
+/* New landing: sections size to their content, not full-height */
 #pg-landing section {
-  position: relative;
+  min-height:0 !important;
+  display:block !important;
+  align-items:initial !important;
+  justify-content:initial !important;
 }
+#pg-landing section[style*="grid"] { display:grid !important; }
+#pg-landing section[style*="flex"] { display:flex !important; }
 
 
 /* ══ NOTEBOOK HOLE PUNCHES ══ */
@@ -2918,8 +2934,8 @@ body.mobile-bg { background:#000 !important; }
   z-index: 10;
 }
 
-/* ══ NOTEBOOK RULED LINES ══ */
-[data-theme="light"] body::before {
+/* ══ NOTEBOOK RULED LINES (both themes) ══ */
+body::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -2929,11 +2945,12 @@ body.mobile-bg { background:#000 !important; }
     linear-gradient(
       to bottom,
       transparent calc(2.2rem - 1px),
-      rgba(120,108,85,.13) calc(2.2rem - 1px),
-      rgba(120,108,85,.13) 2.2rem,
+      var(--rule) calc(2.2rem - 1px),
+      var(--rule) 2.2rem,
       transparent 2.2rem
     );
   background-size: 100% 2.2rem;
+  opacity:.5;
 }
 
 /* Red margin line — classic composition notebook */
@@ -2947,9 +2964,14 @@ body.mobile-bg { background:#000 !important; }
   pointer-events: none;
 }
 
-/* Ensure pages sit above the ruled lines */
-[data-theme="light"] .page { z-index: 2; background: transparent; }
-[data-theme="light"] #pg-landing { z-index: 2; }
+/* Pages sit above and let the paper background show on both themes */
+.page { z-index: 2; background: transparent; }
+#pg-landing {
+  z-index: 2;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--rule) 1px, transparent 1px);
+  background-size: 100% 30px;
+}
 
 /* ══ EXAM LAYOUT — SUPPLEMENTAL STYLES ══ */
 
@@ -3257,7 +3279,170 @@ body.mobile-bg { background:#000 !important; }
   .qm-body { padding:14px !important; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   NOTEBOOK RESKIN OVERRIDES
+   Restyles cards, buttons, headings with hand-drawn aesthetic
+   ══════════════════════════════════════════════════════════ */
+
+/* Headings use Caveat */
+.home-eyebrow, .sec-heading, .drill-card-title, .home-card-title,
+.note-name, .li-title, h1, h2, h3,
+.loading-brand, .login-tagline {
+  font-family:'Caveat',cursive !important;
+}
+
+/* Cards — solid ink border, offset shadow, slight rotate */
+.home-card, .drill-card, .list-item, .login-card {
+  border:2px solid var(--ink) !important;
+  background:var(--paper) !important;
+  border-radius:14px !important;
+  box-shadow:4px 5px 0 var(--shadow) !important;
+  backdrop-filter:none !important;
+}
+.home-card:hover, .drill-card:hover {
+  transform:translateY(-5px) rotate(0deg) !important;
+  background:var(--paper2) !important;
+  box-shadow:4px 8px 0 var(--shadow) !important;
+}
+.list-item:hover {
+  transform:translateX(4px) !important;
+  background:var(--paper2) !important;
+  border-color:var(--ink) !important;
+  box-shadow:4px 5px 0 var(--shadow) !important;
+}
+
+/* Card icon wraps — sticky note colour */
+.card-icon-wrap, .drill-card-icon-wrap {
+  border:2px solid var(--ink) !important;
+  background:var(--hi) !important;
+  border-radius:12px !important;
+}
+.card-icon-wrap svg, .drill-card-icon-wrap svg { stroke:var(--ink) !important; }
+
+/* Card arrows */
+.card-arrow, .drill-card-arrow {
+  border:2px solid var(--ink) !important;
+}
+.card-arrow svg, .drill-card-arrow svg { stroke:var(--ink) !important; }
+
+/* Primary buttons — head colour, paper text, offset shadow */
+.fill-btn, .mark-btn {
+  background:var(--head) !important;
+  color:var(--paper) !important;
+  border:none !important;
+  border-radius:11px !important;
+  box-shadow:2px 3px 0 var(--shadow) !important;
+  font-family:'Patrick Hand',cursive !important;
+  font-size:1.05rem !important;
+  letter-spacing:0 !important;
+  transition:transform .14s, box-shadow .14s !important;
+}
+.fill-btn::before { display:none !important; }
+.fill-btn span, .mark-btn span { color:var(--paper) !important; }
+.fill-btn:hover, .mark-btn:hover {
+  transform:translateY(-2px) !important;
+  box-shadow:2px 6px 0 var(--shadow) !important;
+  color:var(--paper) !important;
+}
+
+/* Secondary buttons */
+.sec-btn, .pill-btn {
+  background:transparent !important;
+  color:var(--inkSoft) !important;
+  border:2px solid var(--rule) !important;
+  border-radius:9px !important;
+  font-family:'Patrick Hand',cursive !important;
+}
+.sec-btn:hover, .pill-btn:hover {
+  border-color:var(--ink) !important;
+  color:var(--ink) !important;
+}
+.pill-btn svg { stroke:currentColor !important; }
+
+/* Top bar — dashed underline */
+.top-bar {
+  background:color-mix(in srgb,var(--paper) 88%,transparent) !important;
+  backdrop-filter:blur(6px) !important;
+  border-bottom:2px dashed var(--rule) !important;
+}
+.top-logo {
+  font-family:'Caveat',cursive !important;
+  font-size:1.8rem !important;
+  font-weight:700 !important;
+  color:var(--head) !important;
+}
+
+/* Inputs — dashed underline */
+.fl input {
+  font-family:'Patrick Hand',cursive !important;
+  border-bottom:2px dashed var(--margin) !important;
+  color:var(--ink) !important;
+}
+.fl input:focus { border-bottom-color:var(--head) !important; }
+
+/* Avatars — head bg */
+.top-avatar, .home-avatar {
+  background:var(--head) !important;
+  color:var(--paper) !important;
+  font-family:'Caveat',cursive !important;
+  font-weight:700 !important;
+  border:none !important;
+}
+
+/* Section headings */
+.sec-heading { color:var(--head) !important; font-weight:700 !important; }
+.home-eyebrow { color:var(--head) !important; font-style:normal !important; }
+
+/* Badges and pills */
+.li-badge, .paper-marks-pill, .paper-board-badge {
+  background:var(--sticky) !important;
+  color:var(--ink) !important;
+  border:1.5px solid var(--ink) !important;
+  font-family:'Patrick Hand',cursive !important;
+}
+
+/* Theme toggle button area */
+.theme-toggle {
+  background:var(--paper2) !important;
+  border:2px solid var(--rule) !important;
+  color:var(--ink) !important;
+}
+
+/* Notes/papers list left accent already inline — keep */
+
+/* Drill breadcrumb */
+.drill-breadcrumb { color:var(--inkSoft) !important; }
+
+/* Exam screen panels */
+.exam-aside {
+  background:var(--paper) !important;
+  border-left:2px solid var(--ink) !important;
+  backdrop-filter:none !important;
+}
+.q-dot {
+  border:2px solid var(--ink) !important;
+  background:var(--paper) !important;
+  color:var(--ink) !important;
+  font-family:'Patrick Hand',cursive !important;
+}
+.q-dot.active { background:var(--hi) !important; }
+.q-dot.done { background:var(--accent) !important; color:var(--paper) !important; }
+
+/* Upload area — dashed */
+.upload-area {
+  border:2px dashed var(--margin) !important;
+  background:var(--paper2) !important;
+  border-radius:12px !important;
+  font-family:'Patrick Hand',cursive !important;
+  color:var(--inkSoft) !important;
+}
+.upload-area:hover, .upload-area.drag-over {
+  border-color:var(--head) !important;
+  background:var(--paper) !important;
+}
+
 </style>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -3301,523 +3486,244 @@ body.mobile-bg { background:#000 !important; }
 
 
 <!-- ════ LANDING PAGE ════ -->
-<div class="page hidden" id="pg-landing" style="overflow-y:auto;overflow-x:hidden;cursor:none">
-<nav>
-  <div class="nav-logo">EduCorps</div>
-  <ul class="nav-links">
-    <li><a href="#about" onclick="document.getElementById('pg-landing').querySelector('#about').scrollIntoView({behavior:'smooth'});return false;">About</a></li>
-    <li><a href="#why" onclick="document.getElementById('pg-landing').querySelector('#why').scrollIntoView({behavior:'smooth'});return false;">Why Us</a></li>
-    <li><a href="#features" onclick="document.getElementById('pg-landing').querySelector('#features').scrollIntoView({behavior:'smooth'});return false;">Features</a></li>
-    <li><a href="#plans" onclick="document.getElementById('pg-landing').querySelector('#plans').scrollIntoView({behavior:'smooth'});return false;">Free Plan</a></li>
-  </ul>
-  <div class="nav-right">
-    <button class="nav-cta" onclick="launchApp()">
-      <span>Get Started</span>
-    </button>
-  </div>
-</nav>
+<div class="page hidden" id="pg-landing" style="overflow-y:auto;overflow-x:hidden;cursor:pointer">
 
-<!-- ══ HERO ══ -->
-<section id="hero">
-  <div class="hero-eyebrow">AI-powered study platform for IGCSE Mathematics, Physics, Chemistry, Economics &amp; Computer Science</div>
-  <h1 class="hero-title">EDUCORPS</h1>
-  <p class="hero-sub">Your intelligent IGCSE study companion — covering all five subjects with AI-powered revision, instant marking, and exam simulation to help you perform at your absolute best.</p>
-  <div class="hero-actions">
-    <button class="btn-primary" onclick="launchApp()">Start for Free →</button>
-    <button class="btn-ghost" onclick="document.getElementById('pg-landing').querySelector('#about').scrollIntoView({behavior:'smooth'})">Learn More</button>
+  <!-- TOP BAR -->
+  <div style="position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:12px 26px;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(6px);border-bottom:2px dashed var(--rule)">
+    <div onclick="document.getElementById('pg-landing').scrollTo({top:0,behavior:'smooth'})" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+      <span style="display:grid;place-items:center;width:40px;height:40px;background:var(--head);color:var(--paper);border-radius:10px 10px 12px 8px;transform:rotate(-4deg);box-shadow:2px 3px 0 var(--shadow)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2 2 0 0 1 6 4h5v15H6a2 2 0 0 0-2 1.5zM20 5.5A2 2 0 0 0 18 4h-5v15h5a2 2 0 0 1 2 1.5z"></path></svg>
+      </span>
+      <span style="font-family:'Caveat',cursive;font-weight:700;font-size:30px;line-height:1;color:var(--head)">Edu<span style="color:var(--ink)">Corps</span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div onclick="toggleTheme()" title="Toggle paper mood" style="display:flex;align-items:center;gap:6px;cursor:pointer;background:var(--paper2);border:2px solid var(--rule);border-radius:30px;padding:5px 12px;user-select:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"></path></svg>
+        <span style="font-family:'Caveat',cursive;font-size:18px;font-weight:700;color:var(--ink)">mood</span>
+      </div>
+      <button onclick="launchApp()" style="font-family:'Patrick Hand',cursive;font-size:17px;cursor:pointer;background:var(--ink);color:var(--paper);border:none;padding:8px 18px;border-radius:9px;box-shadow:2px 2px 0 var(--shadow)">Log in</button>
+    </div>
   </div>
-  <div class="hero-scroll"><div class="scroll-line"></div><span>scroll</span></div>
-</section>
 
-<!-- ══ ABOUT ══ -->
-<section id="about">
-  <div class="section-inner">
-    <div class="about-grid">
+  <div style="max-width:1080px;margin:0 auto;padding:10px 26px 80px">
+
+    <!-- HERO -->
+    <section style="display:grid;grid-template-columns:1.15fr .85fr;gap:30px;align-items:center;padding:46px 0 30px">
+      <div style="animation:fadeUp .7s ease both">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:var(--paper2);border:2px solid var(--rule);border-radius:30px;padding:5px 14px;font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft);transform:rotate(-1.5deg)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.3 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.7-.5z"></path></svg>
+          Free for every IGCSE student
+        </div>
+        <h1 style="font-family:'Caveat',cursive;font-weight:700;font-size:62px;line-height:.98;margin:18px 0 8px;color:var(--ink)">Your whole syllabus,<br>tucked into one
+          <span style="position:relative;white-space:nowrap;color:var(--ink)">notebook.
+            <span style="position:absolute;left:-4px;right:-4px;bottom:6px;height:18px;background:var(--hi);z-index:-1;border-radius:3px"></span>
+          </span>
+        </h1>
+        <p style="font-family:'Patrick Hand',cursive;font-size:19px;line-height:1.5;color:var(--inkSoft);max-width:440px;margin:14px 0 26px">Notes, textbooks and past papers for five subjects — all in one place. Solve a paper, snap your answers, and let your own Groq key mark it. No fees, no clutter, just your study desk.</p>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <button onclick="launchApp()" style="font-family:'Patrick Hand',cursive;font-size:19px;cursor:pointer;background:var(--head);color:var(--paper);border:none;padding:13px 26px;border-radius:11px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1deg)">Open your notebook →</button>
+          <span style="font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft);display:flex;align-items:center;gap:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>No card needed</span>
+        </div>
+      </div>
+      <div style="position:relative;animation:fadeUp .7s .15s ease both">
+        <div style="position:absolute;top:-18px;right:6px;width:120px;height:120px;background:var(--sticky);border-radius:6px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(4deg);display:grid;place-items:center">
+          <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"></circle><ellipse cx="12" cy="12" rx="10" ry="4.2"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)"></ellipse></svg>
+        </div>
+        <div style="background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:22px;box-shadow:5px 6px 0 var(--shadow);transform:rotate(1.5deg);background-image:linear-gradient(var(--rule) 1px,transparent 1px);background-size:100% 28px">
+          <div style="font-family:'Caveat',cursive;font-size:26px;color:var(--head);font-weight:700;margin-bottom:6px">Today&rsquo;s desk</div>
+          <div style="display:flex;flex-direction:column;gap:11px;margin-top:6px">
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Patrick Hand',cursive;font-size:17px"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></span>Physics — Paper 4 ready <span style="margin-left:auto;color:var(--inkSoft)">75 min</span></div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Patrick Hand',cursive;font-size:17px"><span style="width:10px;height:10px;border-radius:50%;background:var(--head)"></span>Chemistry — Ch.3 notes <span style="margin-left:auto;color:var(--inkSoft)">open</span></div>
+            <div style="display:flex;align-items:center;gap:10px;font-family:'Patrick Hand',cursive;font-size:17px"><span style="width:10px;height:10px;border-radius:50%;background:var(--inkSoft)"></span>Economics textbook <span style="margin-left:auto;color:var(--accent)">39 chapters</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURE CARDS -->
+    <section class="nb-watch" style="margin-top:34px">
+      <h2 style="font-family:'Caveat',cursive;font-size:38px;font-weight:700;text-align:center;margin:0 0 4px;color:var(--ink)">What&rsquo;s on the page</h2>
+      <p style="text-align:center;font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:17px;margin:0 0 28px">Four tools, one tidy margin.</p>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+        <div style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1.5deg)">
+          <span style="display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--sticky);color:var(--ink);margin-bottom:10px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2 2 0 0 1 6 4h10a2 2 0 0 1 2 2v14H6a2 2 0 0 0-2 1.5z"></path><path d="M8 8h6M8 12h6M8 16h4"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:25px;color:var(--head)">Notes</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:15px;line-height:1.4;color:var(--inkSoft);margin:4px 0 0">Tidy chapter-by-chapter notes you can flip through like a binder — highlighted and to the point.</p>
+        </div>
+        <div style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(1.5deg)">
+          <span style="display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--sticky2);color:var(--ink);margin-bottom:10px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2.5z"></path><path d="M9 4v14"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:25px;color:var(--head)">Textbooks</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:15px;line-height:1.4;color:var(--inkSoft);margin:4px 0 0">Full textbooks, opened to the right chapter. Jump straight to what today&rsquo;s lesson covers.</p>
+        </div>
+        <div style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1deg)">
+          <span style="display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--hi);color:var(--ink);margin-bottom:10px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10l3 3v15H7z"></path><path d="M10 9h6M10 13h6M10 17h3"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:25px;color:var(--head)">Past papers</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:15px;line-height:1.4;color:var(--inkSoft);margin:4px 0 0">Real 2025 exam papers on scrollable paper. Sit them under a timer, just like the hall.</p>
+        </div>
+        <div style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(1.2deg)">
+          <span style="display:grid;place-items:center;width:46px;height:46px;border-radius:12px;background:var(--paper2);color:var(--accent);margin-bottom:10px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 .6-3 3 .7 4.2L12 17l-3.7 1.8.7-4.2-3-3 4-.6z"></path><path d="M5 20h14"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:25px;color:var(--head)">Auto-marking</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:15px;line-height:1.4;color:var(--inkSoft);margin:4px 0 0">Snap your answers and your own Groq key marks them — scores and feedback in the margin.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUBJECTS STRIP -->
+    <section class="nb-watch-pop" style="margin-top:56px">
+      <h2 style="font-family:'Caveat',cursive;font-size:38px;font-weight:700;text-align:center;margin:0 0 4px;color:var(--ink)">Five subjects, one binder</h2>
+      <p style="text-align:center;font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:17px;margin:0 0 26px">Notes, books and papers — sorted for each one.</p>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
+        <div style="text-align:center;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:20px 10px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-2deg)">
+          <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:13px;background:var(--sticky);color:var(--ink);margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12L11 12l7 8H5"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--ink);line-height:1">Maths</div>
+        </div>
+        <div style="text-align:center;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:20px 10px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(1.4deg)">
+          <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:13px;background:var(--sticky2);color:var(--ink);margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"></circle><ellipse cx="12" cy="12" rx="10" ry="4.2"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)"></ellipse></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--ink);line-height:1">Physics</div>
+        </div>
+        <div style="text-align:center;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:20px 10px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1deg)">
+          <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:13px;background:var(--hi);color:var(--ink);margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v5l-5 9.5A1.6 1.6 0 0 0 6.4 20h11.2a1.6 1.6 0 0 0 1.4-2.5L14 8V3"></path><path d="M7.7 14h8.6"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--ink);line-height:1">Chemistry</div>
+        </div>
+        <div style="text-align:center;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:20px 10px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(1.8deg)">
+          <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:13px;background:var(--sticky2);color:var(--ink);margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V13M10 20V9M16 20v-6"></path><path d="M3 9l5-4 4 3 6-6"></path><path d="M18 2h2v2"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--ink);line-height:1">Economics</div>
+        </div>
+        <div style="text-align:center;background:var(--paper);border:2px solid var(--ink);border-radius:14px;padding:20px 10px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1.6deg)">
+          <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:13px;background:var(--sticky);color:var(--ink);margin-bottom:8px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--ink);line-height:1">Comp Sci</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="nb-watch" style="margin-top:54px;background:var(--paper2);border:2px dashed var(--ink);border-radius:16px;padding:30px 26px;position:relative">
+      <span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%) rotate(-2deg);background:var(--head);color:var(--paper);font-family:'Caveat',cursive;font-weight:700;font-size:24px;padding:3px 18px;border-radius:8px;box-shadow:2px 3px 0 var(--shadow)">How it works</span>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:14px">
+        <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-size:46px;font-weight:700;color:var(--accent);line-height:1">1</div><div style="font-family:'Patrick Hand',cursive;font-size:16px;color:var(--inkSoft)">Make your free account</div></div>
+        <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-size:46px;font-weight:700;color:var(--accent);line-height:1">2</div><div style="font-family:'Patrick Hand',cursive;font-size:16px;color:var(--inkSoft)">Paste your Groq key once</div></div>
+        <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-size:46px;font-weight:700;color:var(--accent);line-height:1">3</div><div style="font-family:'Patrick Hand',cursive;font-size:16px;color:var(--inkSoft)">Pick your subjects</div></div>
+        <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-size:46px;font-weight:700;color:var(--accent);line-height:1">4</div><div style="font-family:'Patrick Hand',cursive;font-size:16px;color:var(--inkSoft)">Study, solve, get marked</div></div>
+      </div>
+    </section>
+
+    <!-- MARKING SHOWCASE -->
+    <section class="nb-watch" style="margin-top:58px;display:grid;grid-template-columns:.9fr 1.1fr;gap:30px;align-items:center">
       <div>
-        <div class="about-label reveal">What is EduCorps?</div>
-        <h2 class="section-title reveal reveal-delay-1">Study <span>Smarter.</span><br>Not Harder.</h2>
-        <p class="about-body reveal reveal-delay-2">EduCorps is an AI-first revision platform built specifically for IGCSE students. It combines intelligent note management, topic-based practice questions, full past paper simulation, and instant AI marking across Mathematics, Physics, Chemistry, Economics, and Computer Science — all in one seamless interface.</p>
-        <p class="about-body reveal reveal-delay-2" style="margin-top:16px">Unlike generic revision tools, EduCorps understands the IGCSE curriculum, speaks the language of examiners, and gives feedback that actually pushes your grade higher across every subject.</p>
-        <div class="about-stats">
-          <div class="stat-box reveal reveal-delay-3"><div class="stat-val">3x</div><div class="stat-label">Faster Feedback</div></div>
-          <div class="stat-box reveal reveal-delay-3"><div class="stat-val">94%</div><div class="stat-label">Grade Improvement</div></div>
-          <div class="stat-box reveal reveal-delay-4"><div class="stat-val">1000+</div><div class="stat-label">Past Paper Questions</div></div>
-          <div class="stat-box reveal reveal-delay-4"><div class="stat-val">5</div><div class="stat-label">IGCSE Subjects</div></div>
+        <div style="display:inline-flex;align-items:center;gap:7px;background:var(--hi);color:var(--ink);border-radius:30px;padding:4px 13px;font-family:'Patrick Hand',cursive;font-size:14px;transform:rotate(-1.5deg)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 4 4 .6-3 3 .7 4.2L12 13"></path></svg>Auto-marked</div>
+        <h2 style="font-family:'Caveat',cursive;font-size:42px;font-weight:700;margin:12px 0 8px;line-height:1;color:var(--ink)">Solve it, snap it,<br>get it back marked.</h2>
+        <p style="font-family:'Patrick Hand',cursive;font-size:17px;line-height:1.5;color:var(--inkSoft);max-width:380px">Sit a real past paper under the timer. Photograph each answer, hit mark, and your own Groq key writes scores and margin notes — like a tutor who never sleeps.</p>
+      </div>
+      <div style="position:relative">
+        <div style="background:#fff;border:2px solid var(--ink);border-radius:10px;box-shadow:5px 6px 0 var(--shadow);transform:rotate(-1deg);background-image:linear-gradient(#e8eef5 1px,transparent 1px);background-size:100% 26px;background-position:0 40px;padding:18px 22px 22px 40px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;bottom:0;left:26px;width:2px;background:var(--margin);opacity:.5"></div>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:#2a2a2a;border-bottom:2px solid #2a2a2a;padding-bottom:5px">Physics · Paper 4</div>
+          <div style="font-family:'Patrick Hand',cursive;font-size:15px;color:#222;margin-top:12px;line-height:1.5"><b style="color:var(--head)">1.</b> A 2 kg trolley reaches 6 m/s in 3 s. Find the force. <span style="color:#999">[8]</span></div>
+          <div style="font-family:'Patrick Hand',cursive;font-size:14px;color:#555;margin-top:4px;padding-left:14px">F = ma = 2 &times; 2 = <span style="background:var(--hi);padding:0 3px">4 N</span> &check;</div>
+          <div style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:var(--paper2);border:2px dashed var(--accent);border-radius:9px;padding:6px 12px;font-family:'Patrick Hand',cursive;font-size:14px;color:var(--ink)"><span style="font-family:'Caveat',cursive;font-weight:700;font-size:22px;color:var(--accent)">7/8</span> Great working — state the unit earlier next time.</div>
+        </div>
+        <div style="position:absolute;top:-16px;right:-6px;background:var(--head);font-family:'Caveat',cursive;font-weight:700;font-size:20px;color:#fff;padding:6px 14px;border-radius:7px;box-shadow:2px 3px 0 var(--shadow);transform:rotate(5deg)">marked in seconds</div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section style="margin-top:58px">
+      <h2 style="font-family:'Caveat',cursive;font-size:38px;font-weight:700;text-align:center;margin:0 0 4px;color:var(--ink)">Before you start</h2>
+      <p style="text-align:center;font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:17px;margin:0 0 26px">The questions students scribble in the margin.</p>
+      <div style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px">
+        <details style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:14px 18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-.5deg)">
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;font-family:'Caveat',cursive;font-weight:700;font-size:24px;color:var(--ink)"><span style="display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--head);color:#fff;font-size:18px;flex:none">?</span>Is EduCorps really free?</summary>
+          <p style="font-family:'Patrick Hand',cursive;font-size:16px;line-height:1.5;color:var(--inkSoft);margin:10px 0 0;padding-left:42px">Yes. Notes, textbooks and past papers cost nothing. The only thing you bring is your own Groq key, which marks your papers on your side — so there&rsquo;s no bill from us.</p>
+        </details>
+        <details style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:14px 18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(.6deg)">
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;font-family:'Caveat',cursive;font-weight:700;font-size:24px;color:var(--ink)"><span style="display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:18px;flex:none">?</span>Where does my Groq key go?</summary>
+          <p style="font-family:'Patrick Hand',cursive;font-size:16px;line-height:1.5;color:var(--inkSoft);margin:10px 0 0;padding-left:42px">It stays in your browser, full stop. We never send it to our servers — the marking happens between you and Groq.</p>
+        </details>
+        <details style="background:var(--paper);border:2px solid var(--ink);border-radius:13px;padding:14px 18px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-.4deg)">
+          <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;font-family:'Caveat',cursive;font-weight:700;font-size:24px;color:var(--ink)"><span style="display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--head);color:var(--paper);font-size:18px;flex:none">?</span>Which subjects are covered?</summary>
+          <p style="font-family:'Patrick Hand',cursive;font-size:16px;line-height:1.5;color:var(--inkSoft);margin:10px 0 0;padding-left:42px">Maths, Physics, Chemistry, Economics and Computer Science — each with its own notes, textbooks and a stack of 2025 past papers ready to solve.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- TESTIMONIALS -->
+    <section class="nb-watch" style="margin-top:58px">
+      <h2 style="font-family:'Caveat',cursive;font-size:38px;font-weight:700;text-align:center;margin:0 0 4px;color:var(--ink)">From other desks</h2>
+      <p style="text-align:center;font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:17px;margin:0 0 26px">Built for IGCSE students who&rsquo;d rather just learn.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px">
+        <div style="position:relative;background:var(--sticky);border-radius:6px;padding:22px 20px;box-shadow:3px 5px 0 var(--shadow);transform:rotate(-1.6deg)">
+          <span style="position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(-3deg);width:54px;height:18px;background:color-mix(in srgb,var(--accent) 35%,transparent);border:1px solid color-mix(in srgb,var(--ink) 20%,transparent)"></span>
+          <p style="font-family:'Caveat',cursive;font-size:23px;line-height:1.25;color:var(--ink);margin:0">&ldquo;Past papers, notes and the textbook in one tab. My revision finally feels organised.&rdquo;</p>
+          <div style="font-family:'Patrick Hand',cursive;font-size:14px;color:var(--inkSoft);margin-top:12px">— a Grade 10 student</div>
+        </div>
+        <div style="position:relative;background:var(--sticky2);border-radius:6px;padding:22px 20px;box-shadow:3px 5px 0 var(--shadow);transform:rotate(1.2deg)">
+          <span style="position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(4deg);width:54px;height:18px;background:color-mix(in srgb,var(--head) 30%,transparent);border:1px solid color-mix(in srgb,var(--ink) 20%,transparent)"></span>
+          <p style="font-family:'Caveat',cursive;font-size:23px;line-height:1.25;color:var(--ink);margin:0">&ldquo;The timer makes practice feel like the real exam hall. No more lazy revision.&rdquo;</p>
+          <div style="font-family:'Patrick Hand',cursive;font-size:14px;color:var(--inkSoft);margin-top:12px">— a Cambridge IGCSE student</div>
+        </div>
+        <div style="position:relative;background:var(--hi);border-radius:6px;padding:22px 20px;box-shadow:3px 5px 0 var(--shadow);transform:rotate(-.8deg)">
+          <span style="position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(-2deg);width:54px;height:18px;background:color-mix(in srgb,var(--head) 35%,transparent);border:1px solid color-mix(in srgb,var(--ink) 20%,transparent)"></span>
+          <p style="font-family:'Caveat',cursive;font-size:23px;line-height:1.25;color:var(--ink);margin:0">&ldquo;Marking my own papers used to take forever. Now it&rsquo;s done in seconds.&rdquo;</p>
+          <div style="font-family:'Patrick Hand',cursive;font-size:14px;color:var(--inkSoft);margin-top:12px">— an early EduCorps user</div>
         </div>
       </div>
+    </section>
 
-      <!-- ORBITAL — JS-driven so labels always stay upright -->
-      <div class="about-visual reveal reveal-delay-2">
-        <svg id="orbital-svg" viewBox="0 0 440 440" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:440px;height:440px;overflow:visible">
-          <!-- static rings -->
-          <circle cx="220" cy="220" r="175" fill="none" stroke="rgba(255,255,255,.1)"  stroke-width="1" class="orb-ring-line"/>
-          <circle cx="220" cy="220" r="125" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="5 4" class="orb-ring-line"/>
-          <circle cx="220" cy="220" r="75"  fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1" class="orb-ring-line"/>
-          <circle cx="220" cy="220" r="34"  fill="none" stroke="rgba(255,255,255,.3)"  stroke-width="1.5" class="orb-center-circle"/>
-
-          <!-- JS-animated orbital items: dot + label rendered here, positioned by JS -->
-          <!-- outer ring -->
-          <g id="orb-item-0"><circle r="7" class="orb-dot-white" fill="white"/><rect rx="6" fill="rgba(12,12,12,.88)" stroke="rgba(255,255,255,.22)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7.5" font-weight="700" letter-spacing="1.5" dy="4" class="orb-label-txt">MATHEMATICS</text></g>
-          <g id="orb-item-1"><circle r="6" fill="#e8307e"/><rect rx="6" fill="rgba(12,12,12,.88)" stroke="rgba(232,48,126,.4)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7.5" font-weight="700" letter-spacing="1.5" dy="4" class="orb-label-txt">PHYSICS</text></g>
-          <!-- middle ring -->
-          <g id="orb-item-2"><circle r="6" fill="#7c3aed"/><rect rx="6" fill="rgba(12,12,12,.88)" stroke="rgba(124,58,237,.4)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7.5" font-weight="700" letter-spacing="1" dy="4" class="orb-label-txt">CHEMISTRY</text></g>
-          <g id="orb-item-3"><circle r="6" fill="#00e0ff"/><rect rx="6" fill="rgba(12,12,12,.88)" stroke="rgba(0,224,255,.3)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7.5" font-weight="700" letter-spacing="1" dy="4" class="orb-label-txt">ECONOMICS</text></g>
-          <!-- inner ring -->
-          <g id="orb-item-4"><circle r="5" fill="white" class="orb-dot-white"/><rect rx="5" fill="rgba(12,12,12,.88)" stroke="rgba(255,255,255,.2)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7" font-weight="700" letter-spacing="1" dy="4" class="orb-label-txt">COMP SCI</text></g>
-          <g id="orb-item-5"><circle r="5" fill="#4ade80"/><rect rx="5" fill="rgba(12,12,12,.88)" stroke="rgba(74,222,128,.3)" stroke-width="1" class="orb-label-bg"/><text text-anchor="middle" fill="white" font-family="Barlow,sans-serif" font-size="7" font-weight="700" letter-spacing="1" dy="4" class="orb-label-txt">AI MARKING</text></g>
-
-          <!-- CENTER (static) -->
-          <circle id="orb-center-glow" cx="220" cy="220" r="38" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.3)" stroke-width="1.5" class="orb-center-circle"/>
-          <text x="220" y="215" text-anchor="middle" font-family="Caveat,cursive" font-size="26" fill="white" font-weight="700" letter-spacing="2" class="orb-center-ai">AI</text>
-          <text x="220" y="234" text-anchor="middle" font-family="Barlow,sans-serif" font-size="7" fill="white" opacity=".45" letter-spacing="3" class="orb-center-sub-txt">ENGINE</text>
-        </svg>
+    <!-- WHAT'S NEXT -->
+    <section class="nb-watch-pop" style="margin-top:58px">
+      <div style="text-align:center;margin-bottom:26px">
+        <span style="display:inline-flex;align-items:center;gap:7px;background:var(--head);color:#fff;border-radius:30px;padding:5px 15px;font-family:'Patrick Hand',cursive;font-size:15px;transform:rotate(-1.5deg);box-shadow:2px 3px 0 var(--shadow)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"></path></svg>On the next page</span>
+        <h2 style="font-family:'Caveat',cursive;font-size:38px;font-weight:700;margin:12px 0 2px;color:var(--ink)">What we&rsquo;re sketching next</h2>
+        <p style="font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:17px;margin:0">Two big additions already pencilled into the margin.</p>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══ WHY ══ -->
-<section id="why">
-  <div class="section-inner">
-    <div class="why-header">
-      <div class="about-label reveal">Why choose us</div>
-      <h2 class="section-title reveal reveal-delay-1">A Different<br>Kind of Revision</h2>
-    </div>
-    <div class="why-list">
-
-      <div class="why-row reveal">
-        <div class="why-text-col">
-          <div class="why-num">01</div>
-          <div class="why-title">Examiner-Grade Feedback</div>
-          <p class="why-text">Our AI is trained on mark schemes, examiner reports, and real grade boundaries across all five IGCSE subjects. It marks like a real examiner — telling you exactly what a top-band response needs to score full marks.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div class="nb-card-hover" style="position:relative;background:var(--paper);border:2px dashed var(--ink);border-radius:16px;padding:24px 22px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-.6deg)">
+          <span style="position:absolute;top:-12px;right:16px;background:var(--sticky2);color:var(--head);font-family:'Patrick Hand',cursive;font-size:13px;padding:3px 11px;border-radius:20px;border:1.5px solid var(--head);transform:rotate(3deg)">Coming soon</span>
+          <span class="nb-bob" style="display:grid;place-items:center;width:54px;height:54px;border-radius:14px;background:var(--sticky);color:var(--ink);margin-bottom:12px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><circle cx="17.5" cy="9" r="2.4"></circle><path d="M16 14.4a4.6 4.6 0 0 1 4.5 4.6"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:27px;color:var(--head)">Find a tutor</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:16px;line-height:1.5;color:var(--inkSoft);margin:5px 0 0">Stuck on a topic that won&rsquo;t click? Soon you&rsquo;ll match with a tutor right from EduCorps — filtered by subject, level and the exact chapter you&rsquo;re wrestling with.</p>
         </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <!-- Mark scheme lines -->
-            <rect x="30" y="20" width="240" height="165" rx="10" fill="none" stroke-width="1.2" class="svg-stroke" opacity=".2"/>
-            <rect x="50" y="38" width="80" height="8" rx="4" class="svg-fill" opacity=".7"/>
-            <rect x="50" y="55" width="200" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            <rect x="50" y="67" width="170" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            <rect x="50" y="79" width="190" height="5" rx="2.5" class="svg-fill" opacity=".25"/>
-            <!-- Tick marks appearing -->
-            <g class="mark-tick" style="animation:markTick 2.8s .2s ease-in-out infinite">
-              <polyline points="50,100 56,108 68,92" fill="none" stroke-width="2.5" class="svg-stroke"/>
-              <rect x="78" y="96" width="120" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            </g>
-            <g class="mark-tick" style="animation:markTick 2.8s .8s ease-in-out infinite">
-              <polyline points="50,122 56,130 68,114" fill="none" stroke-width="2.5" class="svg-stroke"/>
-              <rect x="78" y="118" width="90" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            </g>
-            <g class="mark-tick" style="animation:markTick 2.8s 1.4s ease-in-out infinite">
-              <polyline points="50,144 56,152 68,136" fill="none" stroke-width="2.5" class="svg-stroke"/>
-              <rect x="78" y="140" width="140" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            </g>
-            <!-- grade -->
-            <rect x="195" y="148" width="56" height="26" rx="7" class="svg-fill" opacity=".9"/>
-            <text x="223" y="165" text-anchor="middle" font-size="13" font-weight="800" fill="var(--bg)" font-family="Barlow,sans-serif">A*</text>
-          </svg>
+        <div class="nb-card-hover" style="position:relative;background:var(--paper);border:2px dashed var(--ink);border-radius:16px;padding:24px 22px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(.7deg)">
+          <span style="position:absolute;top:-12px;right:16px;background:var(--sticky2);color:var(--head);font-family:'Patrick Hand',cursive;font-size:13px;padding:3px 11px;border-radius:20px;border:1.5px solid var(--head);transform:rotate(-3deg)">Coming soon</span>
+          <span class="nb-bob" style="display:grid;place-items:center;width:54px;height:54px;border-radius:14px;background:var(--sticky2);color:var(--ink);margin-bottom:12px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h10M4 18h7"></path><path d="M17.5 14l2 2 3-3.5"></path></svg></span>
+          <div style="font-family:'Caveat',cursive;font-weight:700;font-size:27px;color:var(--head)">Topic-wise questions</div>
+          <p style="font-family:'Patrick Hand',cursive;font-size:16px;line-height:1.5;color:var(--inkSoft);margin:5px 0 0">Drill one idea at a time. We&rsquo;re building question sets sorted by topic — hammer projectiles or moles until they&rsquo;re second nature, then auto-mark the lot.</p>
         </div>
       </div>
+    </section>
 
-      <div class="why-row why-row-flip reveal reveal-delay-1">
-        <div class="why-text-col">
-          <div class="why-num">02</div>
-          <div class="why-title">Built for IGCSE</div>
-          <p class="why-text">Purpose-built for IGCSE — covering Maths, Physics, Chemistry, Economics, and Computer Science across all major exam boards including Cambridge (CIE) and Edexcel. Five subjects, one platform.</p>
-        </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <!-- Supply/Demand curves -->
-            <line x1="40" y1="170" x2="270" y2="170" stroke-width="1" class="svg-stroke" opacity=".3"/>
-            <line x1="40" y1="20"  x2="40"  y2="170" stroke-width="1" class="svg-stroke" opacity=".3"/>
-            <!-- Demand curve (downward) -->
-            <path d="M55,35 Q150,100 265,155" fill="none" stroke-width="2" class="svg-stroke" opacity=".75" style="animation:drawLine 3s ease-in-out infinite;stroke-dasharray:350;stroke-dashoffset:350"/>
-            <!-- Supply curve (upward) -->
-            <path d="M55,155 Q150,100 265,40" fill="none" stroke-width="2" class="svg-stroke" opacity=".75" style="animation:drawLine 3s .5s ease-in-out infinite;stroke-dasharray:350;stroke-dashoffset:350"/>
-            <!-- Equilibrium point -->
-            <circle cx="160" cy="97" r="6" class="svg-fill" opacity=".9" style="animation:nPulse 2s ease-in-out infinite"/>
-            <line x1="160" y1="97" x2="160" y2="170" stroke-width="1" class="svg-stroke" opacity=".35" stroke-dasharray="3 3"/>
-            <line x1="40"  y1="97" x2="160" y2="97"  stroke-width="1" class="svg-stroke" opacity=".35" stroke-dasharray="3 3"/>
-            <!-- Labels -->
-            <text x="258" y="42"  font-size="9" class="svg-text" opacity=".5" font-family="Barlow,sans-serif" font-weight="700">S</text>
-            <text x="258" y="152" font-size="9" class="svg-text" opacity=".5" font-family="Barlow,sans-serif" font-weight="700">D</text>
-            <text x="162" y="185" font-size="9" class="svg-text" opacity=".5" font-family="Barlow,sans-serif" font-weight="700">P*</text>
-          </svg>
-        </div>
-      </div>
+    <!-- STATS BAND (real numbers) -->
+    <section class="nb-watch-pop" style="margin-top:48px;display:flex;flex-wrap:wrap;justify-content:space-around;gap:20px;background:var(--paper2);border:2px dashed var(--ink);border-radius:16px;padding:24px 26px">
+      <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-weight:700;font-size:40px;color:var(--head);line-height:1">5</div><div style="font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft)">subjects covered</div></div>
+      <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-weight:700;font-size:40px;color:var(--accent);line-height:1">128</div><div style="font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft)">past papers</div></div>
+      <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-weight:700;font-size:40px;color:var(--head);line-height:1">136</div><div style="font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft)">note &amp; book chapters</div></div>
+      <div style="text-align:center"><div style="font-family:'Caveat',cursive;font-weight:700;font-size:40px;color:var(--accent);line-height:1">$0</div><div style="font-family:'Patrick Hand',cursive;font-size:15px;color:var(--inkSoft)">forever, for students</div></div>
+    </section>
 
-      <div class="why-row reveal">
-        <div class="why-text-col">
-          <div class="why-num">03</div>
-          <div class="why-title">Instant QuickMark</div>
-          <p class="why-text">Photograph any handwritten answer — from a Maths proof to a Physics calculation or a Chemistry explanation — and get detailed AI marking in seconds. Works with any handwriting. Perfect for timed practice without waiting for a teacher.</p>
-        </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <!-- Phone outline -->
-            <rect x="95" y="15" width="110" height="170" rx="12" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".35"/>
-            <!-- Camera lens -->
-            <circle cx="150" cy="35" r="8" fill="none" stroke-width="1.2" class="svg-stroke" opacity=".5"/>
-            <circle cx="150" cy="35" r="4" class="svg-fill" opacity=".4"/>
-            <!-- Page inside phone -->
-            <rect x="108" y="52" width="84" height="110" rx="4" fill="none" stroke-width="1" class="svg-stroke" opacity=".4"/>
-            <rect x="116" y="62" width="68" height="4" rx="2" class="svg-fill" opacity=".45"/>
-            <rect x="116" y="73" width="55" height="3" rx="1.5" class="svg-fill" opacity=".3"/>
-            <rect x="116" y="82" width="62" height="3" rx="1.5" class="svg-fill" opacity=".3"/>
-            <rect x="116" y="91" width="50" height="3" rx="1.5" class="svg-fill" opacity=".3"/>
-            <!-- Scan beam on phone -->
-            <rect x="108" y="52" width="84" height="3" rx="1.5" class="svg-fill scan-beam" opacity=".9"/>
-            <!-- Result badge -->
-            <rect x="108" y="136" width="84" height="22" rx="6" class="svg-fill" opacity=".9"/>
-            <text x="150" y="151" text-anchor="middle" font-size="9" font-weight="800" fill="var(--bg)" font-family="Barlow,sans-serif">MARKED ✓ A*</text>
-          </svg>
-        </div>
-      </div>
-
-      <div class="why-row why-row-flip reveal reveal-delay-1">
-        <div class="why-text-col">
-          <div class="why-num">04</div>
-          <div class="why-title">Timed Exam Simulation</div>
-          <p class="why-text">Recreate real exam conditions with auto-timed sessions. When you finish, see a full grade report with scores per question, time charts, and detailed AI feedback on every answer.</p>
-        </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <!-- Stopwatch -->
-            <circle cx="150" cy="110" r="72" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".22"/>
-            <circle cx="150" cy="110" r="72" fill="none" stroke-width="3" class="svg-stroke" opacity=".8" stroke-dasharray="452" class="timer-arc"/>
-            <line x1="140" y1="40" x2="160" y2="40" stroke-width="2.5" class="svg-stroke" opacity=".7"/>
-            <line x1="150" y1="38" x2="150" y2="46" stroke-width="2.5" class="svg-stroke" opacity=".7"/>
-            <line x1="185" y1="50" x2="193" y2="42" stroke-width="2.5" class="svg-stroke" opacity=".6"/>
-            <!-- hands -->
-            <line x1="150" y1="110" x2="150" y2="58"  stroke-width="2.5" class="svg-stroke" opacity=".9"/>
-            <line x1="150" y1="110" x2="188" y2="128" stroke-width="2"   class="svg-stroke" opacity=".7"/>
-            <circle cx="150" cy="110" r="5" class="svg-fill" opacity=".9"/>
-            <!-- Tick marks -->
-            <line x1="150" y1="40" x2="150" y2="50" stroke-width="2" class="svg-stroke" opacity=".5"/>
-            <line x1="222" y1="110" x2="212" y2="110" stroke-width="2" class="svg-stroke" opacity=".5"/>
-            <line x1="150" y1="180" x2="150" y2="170" stroke-width="2" class="svg-stroke" opacity=".5"/>
-            <line x1="78"  y1="110" x2="88"  y2="110" stroke-width="2" class="svg-stroke" opacity=".5"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="why-row reveal">
-        <div class="why-text-col">
-          <div class="why-num">05</div>
-          <div class="why-title">Track Your Progress</div>
-          <p class="why-text">Every result is stored, graphed, and analysed. See how your scores evolve over time, identify which question types cost you marks, and get AI-recommended topics to focus on next.</p>
-        </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <line x1="35" y1="170" x2="275" y2="170" stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="35" y1="20"  x2="35"  y2="170" stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="35" y1="140" x2="275" y2="140" stroke-width=".5" class="svg-stroke" opacity=".1"/>
-            <line x1="35" y1="110" x2="275" y2="110" stroke-width=".5" class="svg-stroke" opacity=".1"/>
-            <line x1="35" y1="80"  x2="275" y2="80"  stroke-width=".5" class="svg-stroke" opacity=".1"/>
-            <line x1="35" y1="50"  x2="275" y2="50"  stroke-width=".5" class="svg-stroke" opacity=".1"/>
-            <rect x="52"  y="120" width="24" height="50" rx="4" class="svg-fill" opacity=".6" style="animation:barGrow1 3s ease-in-out infinite"/>
-            <rect x="96"  y="100" width="24" height="70" rx="4" class="svg-fill" opacity=".6" style="animation:barGrow2 3s ease-in-out infinite .4s"/>
-            <rect x="140" y="75"  width="24" height="95" rx="4" class="svg-fill" opacity=".6" style="animation:barGrow3 3s ease-in-out infinite .8s"/>
-            <rect x="184" y="60"  width="24" height="110" rx="4" class="svg-fill" opacity=".6" style="animation:barGrow4 3s ease-in-out infinite 1.2s"/>
-            <rect x="228" y="38"  width="24" height="132" rx="4" class="svg-fill" opacity=".6" style="animation:barGrow5 3s ease-in-out infinite 1.6s"/>
-            <polyline points="64,130 108,112 152,88 196,72 240,50" fill="none" stroke-width="2" class="svg-stroke" opacity=".7" stroke-dasharray="4 3"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="why-row why-row-flip reveal reveal-delay-1">
-        <div class="why-text-col">
-          <div class="why-num">06</div>
-          <div class="why-title">Always Available AI</div>
-          <p class="why-text">Stuck at midnight before your exam? The AI assistant is available 24/7 inside every section — explain Physics concepts, debug Computer Science logic, walk through Chemistry equations, or analyse Economics diagrams step by step.</p>
-        </div>
-        <div class="why-anim-col">
-          <svg viewBox="0 0 300 200" xmlns="http://www.w3.org/2000/svg" class="why-svg">
-            <!-- Chat bubbles -->
-            <rect x="30" y="20"  width="180" height="42" rx="12" fill="none" stroke-width="1.3" class="svg-stroke" opacity=".6"/>
-            <rect x="30" y="20"  width="180" height="42" rx="12" class="svg-fill" opacity=".07"/>
-            <rect x="38" y="32"  width="100" height="5"  rx="2.5" class="svg-fill" opacity=".45"/>
-            <rect x="38" y="44"  width="70"  height="5"  rx="2.5" class="svg-fill" opacity=".3"/>
-            <!-- AI bubble -->
-            <rect x="90" y="76" width="185" height="52" rx="12" fill="none" stroke-width="1.3" class="svg-stroke" opacity=".8"/>
-            <rect x="90" y="76" width="185" height="52" rx="12" class="svg-fill" opacity=".1"/>
-            <rect x="102" y="89" width="130" height="5"  rx="2.5" class="svg-fill" opacity=".55"/>
-            <rect x="102" y="101" width="100" height="5" rx="2.5" class="svg-fill" opacity=".4"/>
-            <rect x="102" y="113" width="115" height="5" rx="2.5" class="svg-fill" opacity=".3"/>
-            <!-- typing indicator -->
-            <circle cx="60" cy="148" r="5" class="svg-fill" style="animation:nPulse 1.2s ease-in-out infinite"/>
-            <circle cx="78" cy="148" r="5" class="svg-fill" style="animation:nPulse 1.2s .3s ease-in-out infinite"/>
-            <circle cx="96" cy="148" r="5" class="svg-fill" style="animation:nPulse 1.2s .6s ease-in-out infinite"/>
-            <!-- 24/7 -->
-            <text x="238" y="160" text-anchor="middle" font-family="Barlow,sans-serif" font-size="20" font-weight="800" class="svg-text" opacity=".12">24/7</text>
-          </svg>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-<!-- ══ FEATURES (alternating) ══ -->
-<section id="features">
-  <div class="section-inner">
-    <div class="features-header">
-      <div class="about-label reveal">Feature Roadmap</div>
-      <h2 class="section-title reveal reveal-delay-1">Everything You<br>Need to Excel</h2>
+    <div style="text-align:center;margin-top:46px">
+      <button onclick="launchApp()" style="font-family:'Patrick Hand',cursive;font-size:20px;cursor:pointer;background:var(--ink);color:var(--paper);border:none;padding:14px 34px;border-radius:12px;box-shadow:3px 4px 0 var(--shadow);transform:rotate(-1deg)">Start studying — it&rsquo;s free</button>
+      <p style="font-family:'Patrick Hand',cursive;color:var(--inkSoft);font-size:14px;margin-top:20px">EduCorps · made on ruled paper for students who&rsquo;d rather just learn.</p>
     </div>
 
-    <div class="features-list">
-
-      <!-- 1: text LEFT, anim RIGHT -->
-      <div class="feat-block reveal">
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot live"></div> Live Now</div>
-          <div class="feat-title">Smart Notes Library</div>
-          <p class="feat-desc">Curated, curriculum-aligned notes organised by topic — covering all five IGCSE subjects. Search across Maths, Physics, Chemistry, Economics, and Computer Science instantly. Read, study, and quiz yourself without leaving the page.</p>
-        </div>
-        <div class="feat-anim" id="anim-notes">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <defs><clipPath id="notes-clip"><rect x="40" y="20" width="220" height="220"/></clipPath></defs>
-            <g clip-path="url(#notes-clip)">
-              <rect x="60" y="30" width="180" height="210" rx="10" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".25"/>
-              <g class="notes-line" style="animation-duration:4s">
-                <rect x="80" y="55" width="140" height="8" rx="4" class="svg-fill" opacity=".7"/>
-                <rect x="80" y="72" width="110" height="6" rx="3" class="svg-fill" opacity=".4"/>
-                <rect x="80" y="86" width="130" height="6" rx="3" class="svg-fill" opacity=".4"/>
-                <rect x="80" y="100" width="90"  height="6" rx="3" class="svg-fill" opacity=".3"/>
-                <rect x="80" y="118" width="140" height="8" rx="4" class="svg-fill" opacity=".7"/>
-                <rect x="80" y="135" width="120" height="6" rx="3" class="svg-fill" opacity=".4"/>
-                <rect x="80" y="149" width="100" height="6" rx="3" class="svg-fill" opacity=".4"/>
-                <rect x="80" y="163" width="130" height="6" rx="3" class="svg-fill" opacity=".3"/>
-                <rect x="80" y="181" width="140" height="8" rx="4" class="svg-fill" opacity=".7"/>
-                <rect x="80" y="198" width="115" height="6" rx="3" class="svg-fill" opacity=".4"/>
-                <rect x="80" y="212" width="95"  height="6" rx="3" class="svg-fill" opacity=".3"/>
-                <rect x="80" y="230" width="140" height="8" rx="4" class="svg-fill" opacity=".7"/>
-              </g>
-            </g>
-            <rect x="60" y="0" width="180" height="28" rx="8" fill="none" stroke-width="1.2" class="svg-stroke" opacity=".5"/>
-            <circle cx="80" cy="14" r="5" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".6"/>
-            <line x1="84" y1="18" x2="88" y2="22" stroke-width="1.5" class="svg-stroke" opacity=".6"/>
-          </svg>
-        </div>
-      </div>
-
-      <!-- 2: anim LEFT, text RIGHT -->
-      <div class="feat-block reveal reveal-delay-1" style="direction:ltr">
-        <div class="feat-anim" id="anim-qm">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <rect x="70" y="30" width="160" height="200" rx="10" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".3"/>
-            <line x1="90" y1="60"  x2="210" y2="60"  stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="90" y1="78"  x2="185" y2="78"  stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="90" y1="96"  x2="200" y2="96"  stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="90" y1="114" x2="170" y2="114" stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <line x1="90" y1="132" x2="195" y2="132" stroke-width="1" class="svg-stroke" opacity=".25"/>
-            <rect x="70" y="0" width="160" height="4" rx="2" class="svg-fill scan-beam" opacity=".9"/>
-            <rect x="175" y="185" width="50" height="32" rx="8" class="svg-fill" opacity=".85"/>
-            <text x="200" y="206" text-anchor="middle" font-size="13" font-weight="800" fill="var(--bg)" font-family="'Barlow',sans-serif">A*</text>
-            <polyline points="92,67 96,72 105,60" fill="none" stroke-width="2" class="svg-stroke" opacity=".7"/>
-            <polyline points="92,85 96,90 105,78" fill="none" stroke-width="2" class="svg-stroke" opacity=".7"/>
-          </svg>
-        </div>
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot live"></div> Live Now</div>
-          <div class="feat-title">QuickMark — Upload &amp; Mark</div>
-          <p class="feat-desc">Photograph any handwritten answer across any IGCSE subject and receive full AI marking with score, grade, and detailed improvement suggestions within seconds.</p>
-        </div>
-      </div>
-
-      <!-- 3: text LEFT, anim RIGHT -->
-      <div class="feat-block reveal">
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot live"></div> Live Now</div>
-          <div class="feat-title">Full Past Paper Mode</div>
-          <p class="feat-desc">Sit complete past papers in exam conditions. Timer runs in real time. Submit all answers at once for a comprehensive result report with charts.</p>
-        </div>
-        <div class="feat-anim" id="anim-timer">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="150" cy="130" r="90" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".25"/>
-            <circle cx="150" cy="130" r="90" fill="none" stroke-width="3" class="svg-stroke timer-arc" opacity=".7" stroke-dasharray="565"/>
-            <line x1="150" y1="44" x2="150" y2="56" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="236" y1="130" x2="224" y2="130" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="150" y1="216" x2="150" y2="204" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="64" y1="130" x2="76" y2="130" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="150" y1="130" x2="150" y2="68" stroke-width="2.5" class="svg-stroke" opacity=".9"/>
-            <line x1="150" y1="130" x2="195" y2="148" stroke-width="2" class="svg-stroke" opacity=".7"/>
-            <circle cx="150" cy="130" r="5" class="svg-fill" opacity=".9"/>
-            <text x="150" y="170" text-anchor="middle" font-size="11" class="svg-text" opacity=".5" font-family="'Barlow',sans-serif" letter-spacing="2">TIMED MODE</text>
-          </svg>
-        </div>
-      </div>
-
-      <!-- 4: anim LEFT, text RIGHT -->
-      <div class="feat-block reveal reveal-delay-1" style="direction:ltr">
-        <div class="feat-anim" id="anim-analytics">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <line x1="50" y1="210" x2="270" y2="210" stroke-width="1" class="svg-stroke" opacity=".3"/>
-            <line x1="50" y1="30"  x2="50"  y2="210" stroke-width="1" class="svg-stroke" opacity=".3"/>
-            <line x1="50" y1="170" x2="270" y2="170" stroke-width=".5" class="svg-stroke" opacity=".12"/>
-            <line x1="50" y1="130" x2="270" y2="130" stroke-width=".5" class="svg-stroke" opacity=".12"/>
-            <line x1="50" y1="90"  x2="270" y2="90"  stroke-width=".5" class="svg-stroke" opacity=".12"/>
-            <line x1="50" y1="50"  x2="270" y2="50"  stroke-width=".5" class="svg-stroke" opacity=".12"/>
-            <rect x="70"  y="130" width="28" height="80" rx="4" class="svg-fill" opacity=".75" style="animation:barGrow1 3s ease-in-out infinite"/>
-            <rect x="115" y="110" width="28" height="100" rx="4" class="svg-fill" opacity=".75" style="animation:barGrow2 3s ease-in-out infinite .4s"/>
-            <rect x="160" y="70"  width="28" height="140" rx="4" class="svg-fill" opacity=".75" style="animation:barGrow3 3s ease-in-out infinite .8s"/>
-            <rect x="205" y="90"  width="28" height="120" rx="4" class="svg-fill" opacity=".75" style="animation:barGrow4 3s ease-in-out infinite 1.2s"/>
-            <rect x="250" y="50"  width="28" height="160" rx="4" class="svg-fill" opacity=".75" style="animation:barGrow5 3s ease-in-out infinite 1.6s"/>
-            <polyline points="84,160 129,140 174,100 219,115 264,75" fill="none" stroke-width="2" class="svg-stroke" opacity=".8" stroke-dasharray="4 3"/>
-          </svg>
-        </div>
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot coming"></div> Coming Soon</div>
-          <div class="feat-title">Progress Analytics</div>
-          <p class="feat-desc">Visual graphs of your scores over time. Identify weak spots, track improvement across topics, and see predicted grade boundaries based on your trends.</p>
-        </div>
-      </div>
-
-      <!-- 5: text LEFT, anim RIGHT -->
-      <div class="feat-block reveal">
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot coming"></div> Coming Soon</div>
-          <div class="feat-title">Adaptive Question Engine</div>
-          <p class="feat-desc">Questions that get harder or easier based on your performance across all five subjects. The engine learns which topics you struggle with and builds a personalised IGCSE revision schedule.</p>
-        </div>
-        <div class="feat-anim" id="anim-adaptive">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="150" cy="130" r="22" fill="none" stroke-width="2" class="svg-stroke" opacity=".8"/>
-            <text x="150" y="135" text-anchor="middle" font-size="10" class="svg-text" opacity=".8" font-family="'Barlow',sans-serif" letter-spacing="1">ADAPT</text>
-            <line x1="150" y1="108" x2="150" y2="62"  stroke-width="1" class="svg-stroke" opacity=".4" stroke-dasharray="4 3"/>
-            <line x1="169" y1="143" x2="212" y2="175" stroke-width="1" class="svg-stroke" opacity=".4" stroke-dasharray="4 3"/>
-            <line x1="131" y1="143" x2="88"  y2="175" stroke-width="1" class="svg-stroke" opacity=".4" stroke-dasharray="4 3"/>
-            <line x1="172" y1="122" x2="218" y2="90"  stroke-width="1" class="svg-stroke" opacity=".4" stroke-dasharray="4 3"/>
-            <line x1="128" y1="122" x2="82"  y2="90"  stroke-width="1" class="svg-stroke" opacity=".4" stroke-dasharray="4 3"/>
-            <circle cx="150" cy="48"  r="14" fill="none" stroke-width="1.5" class="svg-stroke node-pulse"  opacity=".7"/>
-            <circle cx="224" cy="185" r="14" fill="none" stroke-width="1.5" class="svg-stroke node-pulse2" opacity=".7"/>
-            <circle cx="76"  cy="185" r="14" fill="none" stroke-width="1.5" class="svg-stroke node-pulse3" opacity=".7"/>
-            <circle cx="226" cy="82"  r="10" fill="none" stroke-width="1.5" class="svg-stroke node-pulse4" opacity=".7"/>
-            <circle cx="74"  cy="82"  r="10" fill="none" stroke-width="1.5" class="svg-stroke node-pulse"  opacity=".7"/>
-            <text x="150" y="52"  text-anchor="middle" font-size="7" class="svg-text" opacity=".6" font-family="'Barlow',sans-serif">MATHS</text>
-            <text x="224" y="189" text-anchor="middle" font-size="7" class="svg-text" opacity=".6" font-family="'Barlow',sans-serif">PHYSICS</text>
-            <text x="76"  y="189" text-anchor="middle" font-size="7" class="svg-text" opacity=".6" font-family="'Barlow',sans-serif">CHEMISTRY</text>
-            <text x="226" y="86"  text-anchor="middle" font-size="7" class="svg-text" opacity=".6" font-family="'Barlow',sans-serif">ECONOMICS</text>
-            <text x="74"  y="86"  text-anchor="middle" font-size="7" class="svg-text" opacity=".6" font-family="'Barlow',sans-serif">COMP SCI</text>
-          </svg>
-        </div>
-      </div>
-
-      <!-- 6: anim LEFT, text RIGHT -->
-      <div class="feat-block reveal reveal-delay-1" style="direction:ltr">
-        <div class="feat-anim" id="anim-voice">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <rect x="130" y="40" width="40" height="80" rx="20" fill="none" stroke-width="2" class="svg-stroke" opacity=".8"/>
-            <path d="M100,135 Q150,185 200,135" fill="none" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="150" y1="185" x2="150" y2="215" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <line x1="125" y1="215" x2="175" y2="215" stroke-width="2" class="svg-stroke" opacity=".6"/>
-            <rect x="30"  y="118" width="8" height="24" rx="4" class="svg-fill wave-bar" style="animation-delay:0s"/>
-            <rect x="46"  y="108" width="8" height="44" rx="4" class="svg-fill wave-bar" style="animation-delay:.15s"/>
-            <rect x="62"  y="100" width="8" height="60" rx="4" class="svg-fill wave-bar" style="animation-delay:.3s"/>
-            <rect x="78"  y="112" width="8" height="36" rx="4" class="svg-fill wave-bar" style="animation-delay:.45s"/>
-            <rect x="214" y="112" width="8" height="36" rx="4" class="svg-fill wave-bar" style="animation-delay:.15s"/>
-            <rect x="230" y="100" width="8" height="60" rx="4" class="svg-fill wave-bar" style="animation-delay:.3s"/>
-            <rect x="246" y="108" width="8" height="44" rx="4" class="svg-fill wave-bar" style="animation-delay:.45s"/>
-            <rect x="262" y="118" width="8" height="24" rx="4" class="svg-fill wave-bar" style="animation-delay:.6s"/>
-          </svg>
-        </div>
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot coming"></div> Coming Soon</div>
-          <div class="feat-title">Voice Mode</div>
-          <p class="feat-desc">Talk through your answer aloud. EduCorps transcribes, structures, and marks your spoken response — perfect for revision on the go or verbal practice across any IGCSE subject.</p>
-        </div>
-      </div>
-
-      <!-- 7: text LEFT, anim RIGHT -->
-      <div class="feat-block reveal">
-        <div class="feat-text">
-          <div class="feat-tag-pill"><div class="feat-tag-dot coming"></div> Coming Soon</div>
-          <div class="feat-title">Study Groups &amp; Peer Review</div>
-          <p class="feat-desc">Share notes and essays with classmates. Review each other's answers with AI co-marking. Build shared question banks and compete on leaderboards.</p>
-        </div>
-        <div class="feat-anim" id="anim-groups">
-          <svg viewBox="0 0 300 260" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="80"  cy="90"  r="22" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".7"/>
-            <path d="M50,145 Q80,120 110,145" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".5"/>
-            <circle cx="150" cy="70"  r="22" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".7"/>
-            <path d="M120,125 Q150,100 180,125" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".5"/>
-            <circle cx="220" cy="90"  r="22" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".7"/>
-            <path d="M190,145 Q220,120 250,145" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".5"/>
-            <line x1="102" y1="100" x2="128" y2="88" stroke-width="1" class="svg-stroke conn-pulse" stroke-dasharray="6 4" opacity=".5"/>
-            <line x1="172" y1="88"  x2="198" y2="100" stroke-width="1" class="svg-stroke conn-pulse" stroke-dasharray="6 4" opacity=".5"/>
-            <rect x="105" y="165" width="90" height="65" rx="8" fill="none" stroke-width="1.5" class="svg-stroke" opacity=".6"/>
-            <rect x="118" y="178" width="64" height="6" rx="3" class="svg-fill" opacity=".5"/>
-            <rect x="118" y="192" width="50" height="5" rx="2.5" class="svg-fill" opacity=".35"/>
-            <rect x="118" y="204" width="58" height="5" rx="2.5" class="svg-fill" opacity=".35"/>
-            <line x1="80"  y1="134" x2="115" y2="165" stroke-width="1" class="svg-stroke conn-pulse" stroke-dasharray="4 4" opacity=".4"/>
-            <line x1="150" y1="114" x2="150" y2="165" stroke-width="1" class="svg-stroke conn-pulse" stroke-dasharray="4 4" opacity=".4"/>
-            <line x1="220" y1="134" x2="185" y2="165" stroke-width="1" class="svg-stroke conn-pulse" stroke-dasharray="4 4" opacity=".4"/>
-          </svg>
-        </div>
-      </div>
-
-    </div><!-- /features-list -->
   </div>
-</section>
-
-<!-- ══ PLANS — single free ══ -->
-<section id="plans">
-  <div class="section-inner">
-    <div class="plans-header">
-      <div class="about-label reveal">Access</div>
-      <h2 class="section-title reveal reveal-delay-1">Free.<br>Forever.</h2>
-    </div>
-    <div class="plan-single reveal reveal-delay-2">
-      <div class="plan-eyebrow">100% Free — No Credit Card</div>
-      <div class="plan-name">Full Access</div>
-      <div class="plan-price">
-        <div class="plan-price-val">£0</div>
-        <div class="plan-price-per">/ always</div>
-      </div>
-      <div class="plan-tagline">EduCorps is completely free. No subscriptions, no paywalls, no hidden limits. We built this for IGCSE students — it stays that way.</div>
-      <div class="plan-divider"></div>
-      <ul class="plan-features">
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Unlimited QuickMark submissions — all 5 subjects</li>
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Full notes library — Maths, Physics, Chemistry, Economics &amp; Comp Sci</li>
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Unlimited past papers &amp; topic questions</li>
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Full AI assistant — no message limits</li>
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Score tracking &amp; performance charts</li>
-        <li><div class="plan-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>Timed exam simulation with full reports</li>
-      </ul>
-      <button class="plan-btn" onclick="launchApp()" onclick="launchApp()"><span>Get Started — It's Free</span></button>
-    </div>
-  </div>
-</section>
-
-<!-- ══ CTA ══ -->
-<section id="cta">
-  <div class="cta-inner">
-    <div class="cta-tag reveal">Ready to elevate your IGCSE grade?</div>
-    <h2 class="cta-title reveal reveal-delay-1">Start Today.<br>Study Smarter.</h2>
-    <p class="cta-sub reveal reveal-delay-2">Join students already using EduCorps to revise more effectively across Maths, Physics, Chemistry, Economics, and Computer Science — mark work instantly, and walk into exams with confidence.</p>
-    <button class="cta-btn reveal reveal-delay-3" onclick="window.open('index.html','_self')">
-      Get Started — It's Free
-      <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-    </button>
-    <div class="cta-note reveal reveal-delay-4">Free for all IGCSE students · Sign up in seconds</div>
-  </div>
-</section>
-
-<!-- ══ FOOTER ══ -->
-<footer>
-  <div class="footer-logo">EduCorps</div>
-  <div style="display:flex;flex-direction:column;gap:6px;text-align:center">
-    <div class="footer-note">© 2025 EduCorps · Built for IGCSE students, powered by AI</div>
-    <div class="footer-note" style="opacity:.35;font-size:.5rem;letter-spacing:.08em;max-width:480px">EduCorps is an independent hobby project and is not affiliated with, endorsed by, or associated with Cambridge Assessment International Education (CAIE), Pearson Edexcel, or any official examination board.</div>
-  </div>
-  <div class="footer-note"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="87efe2ebebe8c7e2e4e8a9e0f7f3">[email&#160;protected]</a></div>
-</footer>
 </div>
 
 
 <!-- ════ LOGIN ════ -->
 <div class="page hidden" id="pg-login">
+  <!-- Floating notebook doodles -->
+  <div class="login-doodle" style="position:absolute;top:14%;left:16%;transform:rotate(-12deg);opacity:.5;animation:floatY 6s ease-in-out infinite">
+    <svg width="58" height="58" viewBox="0 0 24 24" fill="none" stroke="var(--head)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2 2 0 0 1 6 4h5v15H6a2 2 0 0 0-2 1.5zM20 5.5A2 2 0 0 0 18 4h-5v15h5a2 2 0 0 1 2 1.5z"></path></svg>
+  </div>
+  <div class="login-doodle" style="position:absolute;top:24%;right:18%;transform:rotate(10deg);opacity:.5;animation:floatY 5s .6s ease-in-out infinite">
+    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.3 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.7-.5z"></path></svg>
+  </div>
+  <div class="login-doodle" style="position:absolute;bottom:18%;left:20%;transform:rotate(8deg);opacity:.45;animation:floatY 5.5s .3s ease-in-out infinite">
+    <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="var(--head)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v5l-5 9.5A1.6 1.6 0 0 0 6.4 20h11.2a1.6 1.6 0 0 0 1.4-2.5L14 8V3"></path><path d="M7.7 14h8.6"></path></svg>
+  </div>
+  <div class="login-doodle" style="position:absolute;bottom:24%;right:16%;transform:rotate(-8deg);opacity:.45;animation:floatY 6.5s .9s ease-in-out infinite">
+    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"></circle><ellipse cx="12" cy="12" rx="10" ry="4.2"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)"></ellipse></svg>
+  </div>
   <div class="login-wrap">
     <div class="login-brand">EduCorps</div>
     <div class="login-tagline">your intelligent IGCSE study companion</div>
@@ -3943,7 +3849,7 @@ body.mobile-bg { background:#000 !important; }
       </span>
     </button>
     <div style="margin-top:14px;text-align:center;">
-      <a href="#" onclick="skipSubjectSelection();return false;" style="font-size:.65rem;color:var(--grey);text-decoration:none;letter-spacing:.08em;text-transform:uppercase;opacity:.6;cursor:none;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">Select all subjects and continue →</a>
+      <a href="#" onclick="skipSubjectSelection();return false;" style="font-size:.65rem;color:var(--grey);text-decoration:none;letter-spacing:.08em;text-transform:uppercase;opacity:.6;cursor:pointer;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">Select all subjects and continue →</a>
     </div>
     <div id="subsel-back-wrap" style="margin-top:8px;text-align:center;display:none">
       <a href="#" onclick="window._subjectEditFromDashboard=false;goto('pg-home');return false;" style="font-size:.65rem;color:var(--grey);text-decoration:none;letter-spacing:.08em;text-transform:uppercase;opacity:.5;transition:opacity .2s" onmouseover="this.style.opacity=.9" onmouseout="this.style.opacity=.5">← Cancel, back to dashboard</a>
@@ -4282,7 +4188,6 @@ body.mobile-bg { background:#000 !important; }
         <input class="search-input" placeholder="Search by topic, title, or keyword…" oninput="filterNotes(this.value)">
       </div>
       <div class="list-grid" id="notes-list"></div>
-      <div class="note-view-area" id="note-view"><div class="note-empty">← select a note to read</div></div>
     </div>
     <aside class="sec-aside">
       <div class="aside-stat-row">
@@ -4312,6 +4217,32 @@ body.mobile-bg { background:#000 !important; }
         </div>
       </div>
     </aside>
+  </div>
+</div>
+
+<!-- ════ NOTE READER (full screen) ════ -->
+<div class="page hidden" id="pg-note-reader">
+  <div class="top-bar">
+    <span class="top-logo" onclick="goto('pg-home')">EduCorps</span>
+    <div class="top-right">
+      <button class="pill-btn" onclick="goto('pg-notes')"><svg viewBox="0 0 24 24"><use href="#ic-back"/></svg> <span>Chapters</span></button>
+      <div class="top-avatar" id="nr-avatar">—</div>
+    </div>
+  </div>
+  <div id="note-reader-header" style="padding:16px 28px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)">
+    <div id="nr-accent" style="width:4px;height:34px;border-radius:3px;background:var(--accent)"></div>
+    <div>
+      <div id="nr-title" style="font-family:var(--font-head);font-size:1.15rem;font-weight:700">Chapter</div>
+      <div id="nr-subject" style="font-size:.72rem;opacity:.55;text-transform:uppercase;letter-spacing:.08em">Subject</div>
+    </div>
+  </div>
+  <div id="note-reader-body" style="position:absolute;inset:118px 0 0;padding:0">
+    <div id="nr-loading" style="height:100%;display:flex;align-items:center;justify-content:center;opacity:.5;font-size:.9rem">Loading chapter…</div>
+    <iframe id="nr-frame" style="width:100%;height:100%;border:0;display:none" title="Chapter"></iframe>
+    <div id="nr-docx" style="display:none;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:40px;text-align:center">
+      <div style="font-size:.95rem;opacity:.7">This chapter is a Word document.</div>
+      <a id="nr-docx-link" href="#" target="_blank" rel="noopener" class="fill-btn" style="display:inline-flex;text-decoration:none;padding:11px 22px"><span>Open chapter ↗</span></a>
+    </div>
   </div>
 </div>
 
@@ -5791,16 +5722,22 @@ function renderNotes(list){
 
 async function openNote(n){
   const col = subjColor(n.subject);
-  const view = document.getElementById('note-view');
-  view.innerHTML = `
-    <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:18px">
-      <div class="note-name">${n.title}</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col}"></span>
-        <span class="note-subject-pill">${n.subject}</span>
-      </div>
-    </div>
-    <div style="opacity:.5;font-size:.85rem;padding:20px 0">Loading chapter…</div>`;
+  // Set header
+  document.getElementById('nr-title').textContent   = n.title;
+  document.getElementById('nr-subject').textContent = n.subject;
+  document.getElementById('nr-accent').style.background = col;
+  const av = document.getElementById('nr-avatar'); if(av) av.textContent = (currentUser&&currentUser[0])||'—';
+
+  // Reset states
+  const loading = document.getElementById('nr-loading');
+  const frame   = document.getElementById('nr-frame');
+  const docx    = document.getElementById('nr-docx');
+  loading.style.display = 'flex';
+  frame.style.display   = 'none';
+  docx.style.display    = 'none';
+  frame.src = 'about:blank';
+
+  goto('pg-note-reader');
 
   try {
     const { data, error } = await supa.storage
@@ -5809,34 +5746,17 @@ async function openNote(n){
     if(error || !data?.signedUrl) throw new Error(error?.message || 'Could not load');
 
     if(n.ext === 'pdf'){
-      view.innerHTML = `
-        <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:14px">
-          <div class="note-name">${n.title}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col}"></span>
-            <span class="note-subject-pill">${n.subject}</span>
-          </div>
-        </div>
-        <iframe src="${data.signedUrl}#view=FitH" style="width:100%;height:72vh;border:1px solid var(--border);border-radius:10px" title="${n.title}"></iframe>`;
+      frame.src = data.signedUrl + '#view=FitH';
+      frame.onload = () => { loading.style.display='none'; frame.style.display='block'; };
+      setTimeout(() => { loading.style.display='none'; frame.style.display='block'; }, 1500);
     } else {
-      // DOCX — can't render inline, offer download/open
-      view.innerHTML = `
-        <div style="border-left:3px solid ${col};padding-left:14px;margin-bottom:18px">
-          <div class="note-name">${n.title}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col}"></span>
-            <span class="note-subject-pill">${n.subject}</span>
-          </div>
-        </div>
-        <div style="padding:40px 20px;text-align:center;border:1px dashed var(--border);border-radius:12px">
-          <div style="font-size:.9rem;margin-bottom:16px;opacity:.7">This chapter is a Word document.</div>
-          <a href="${data.signedUrl}" target="_blank" rel="noopener" class="fill-btn" style="display:inline-flex;text-decoration:none;padding:10px 20px">
-            <span>Open chapter ↗</span>
-          </a>
-        </div>`;
+      // DOCX — show open button
+      loading.style.display = 'none';
+      document.getElementById('nr-docx-link').href = data.signedUrl;
+      docx.style.display = 'flex';
     }
   } catch(e){
-    view.innerHTML += `<div style="opacity:.5;font-size:.85rem;padding:10px 0">Could not load: ${e.message}</div>`;
+    loading.textContent = 'Could not load: ' + e.message;
   }
 }
 
@@ -6579,6 +6499,12 @@ function launchApp(){
     entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
   }, { threshold: 0.1 });
   document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Notebook reveal system
+  const io2 = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('nb-in'); io2.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.nb-watch, .nb-watch-pop').forEach(el => io2.observe(el));
 })();
 
 // ══ LANDING — NAV SCROLL STYLE ══
