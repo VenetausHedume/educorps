@@ -6225,6 +6225,309 @@ function inferTypeFromCommand(command){
   return 'descriptive';
 }
 
+// ══════════════════════════════════════════════════════════
+//  MARKING ENGINE — Part 2: Scanner 0 (type detector / router)
+//
+//  Decides HOW each answer should be marked by combining:
+//    1. the paired question type (from Part 1)
+//    2. whether the mark scheme has a fixed answer
+//    3. the command word
+//
+//  Returns a routing decision:
+//    { route: 'numerical' | 'descriptive', reason, maxMarks, ms }
+// ══════════════════════════════════════════════════════════
+
+function scanner0(pairedQuestion){
+  const q  = pairedQuestion;
+  const ms = q.ms;
+
+  // Max marks comes from the pairing (already resolved in Part 1)
+  const maxMarks = q.marks || (ms && ms.max_marks) || 1;
+
+  // No mark scheme at all → must use descriptive (Groq) since we have
+  // nothing concrete to match against. Safer than guessing.
+  if(!ms){
+    return { route:'descriptive', reason:'no-markscheme', maxMarks, ms:null };
+  }
+
+  // Mark scheme HAS a fixed answer (numerical or short exact answer)
+  // → numerical route. The answer field being filled is the strongest signal.
+  const hasFixedAnswer = ms.answer !== null
+    && ms.answer !== undefined
+    && String(ms.answer).trim() !== '';
+
+  if(hasFixedAnswer){
+    return { route:'numerical', reason:'fixed-answer', maxMarks, ms };
+  }
+
+  // No fixed answer but has mark points → descriptive (mark on points via Groq)
+  const hasMarkPoints = Array.isArray(ms.mark_points) && ms.mark_points.length > 0;
+  if(hasMarkPoints){
+    return { route:'descriptive', reason:'mark-points', maxMarks, ms };
+  }
+
+  // Fall back to the question's own type / command word
+  if(q.type === 'numerical'){
+    return { route:'numerical', reason:'question-type', maxMarks, ms };
+  }
+
+  // Default: descriptive
+  return { route:'descriptive', reason:'default', maxMarks, ms };
+}
+
+// Convenience: run Scanner 0 across a whole paper, returns routing plan
+function planMarking(questions, msArray){
+  const paired = pairQuestionsWithMS(questions, msArray);
+  return paired.map(q => ({
+    ...q,
+    routing: scanner0(q),
+  }));
+}
+
+// ══════════════════════════════════════════════════════════
+//  MARKING ENGINE — Part 3: Scanner 1 (numerical) + Scanner 2 (working)
+//
+//  Runs fully in the browser — zero API cost.
+//  Scanner 1: checks the student's final answer vs the mark scheme.
+//  Scanner 2: if the answer is wrong, scans working for method marks.
+// ══════════════════════════════════════════════════════════
+
+// Pull all numbers out of a text string (handles 2.5, -3, 1.2e3, fractions)
+function extractNumbers(text){
+  if(!text) return [];
+  const cleaned = String(text).replace(/,/g, ''); // remove thousands separators
+  const matches = cleaned.match(/-?\d+\.?\d*(?:[eE][-+]?\d+)?/g) || [];
+  return matches.map(Number).filter(n => !isNaN(n));
+}
+
+// Normalise a unit string for comparison (strip spaces, lowercase, common variants)
+function normUnit(u){
+  if(!u) return '';
+  return String(u).toLowerCase().replace(/\s+/g,'')
+    .replace(/metres?|meters?/g,'m')
+    .replace(/seconds?|secs?/g,'s')
+    .replace(/grams?/g,'g')
+    .replace(/·/g,'').replace(/\*/g,'').replace(/\^/g,'');
+}
+
+// Are two numbers equal within a sensible tolerance?
+function numbersMatch(student, correct){
+  if(correct === 0) return Math.abs(student) < 1e-6;
+  const relErr = Math.abs((student - correct) / correct);
+  return relErr < 0.015; // 1.5% tolerance — handles rounding differences
+}
+
+// ── SCANNER 1: numerical answer check ──
+// Returns { correct:bool, awarded:int, matchedValue, note }
+function scanner1Numerical(studentText, ms, maxMarks){
+  // Build the list of acceptable NUMERIC answers (main + alternatives)
+  const acceptable = [];
+  if(ms.answer !== null && ms.answer !== undefined){
+    extractNumbers(ms.answer).forEach(n => acceptable.push(n));
+  }
+  if(Array.isArray(ms.alternatives)){
+    ms.alternatives.forEach(alt => extractNumbers(alt).forEach(n => acceptable.push(n)));
+  }
+
+  // CASE A: mark scheme answer is TEXT (no numbers in it) → string match
+  if(acceptable.length === 0){
+    const s = String(studentText).toLowerCase().trim();
+    const a = String(ms.answer || '').toLowerCase().trim();
+    if(a === '') return { correct:false, awarded:0, note:'no mark scheme answer' };
+    // Match if student text contains the answer or vice versa
+    if(s.includes(a) || (a.length > 3 && a.includes(s) && s.length > 2)){
+      return { correct:true, awarded:maxMarks, note:'text answer matched' };
+    }
+    // Also accept if all key words of the answer appear in the student text
+    const answerWords = a.split(/\s+/).filter(w => w.length > 2);
+    if(answerWords.length > 0 && answerWords.every(w => s.includes(w))){
+      return { correct:true, awarded:maxMarks, note:'text keywords matched' };
+    }
+    return { correct:false, awarded:0, note:'text answer did not match' };
+  }
+
+  // CASE B: mark scheme answer is NUMERIC → number match
+  const studentNums = extractNumbers(studentText);
+  if(studentNums.length === 0){
+    return { correct:false, awarded:0, note:'no number found in answer' };
+  }
+  const studentFinal = studentNums[studentNums.length - 1];
+  const anyMatch = acceptable.some(a => numbersMatch(studentFinal, a))
+    || acceptable.some(a => studentNums.some(sn => numbersMatch(sn, a)));
+
+  if(anyMatch){
+    return { correct:true, awarded:maxMarks, matchedValue:studentFinal, note:'correct answer' };
+  }
+  return { correct:false, awarded:0, studentFinal, note:'answer incorrect' };
+}
+
+// ── SCANNER 2: working / method marks ──
+// Called only when Scanner 1 says the final answer is wrong.
+// Looks for evidence of correct method in the student's working.
+// Returns { awarded:int, matched:[...], note }
+function scanner2Working(studentText, ms, maxMarks){
+  const methodMarks = Array.isArray(ms.method_marks) ? ms.method_marks : [];
+  if(methodMarks.length === 0){
+    // No method marks defined — can't award partial credit locally
+    return { awarded:0, matched:[], note:'no method marks available' };
+  }
+
+  const studentLower = String(studentText).toLowerCase();
+  const studentNums  = extractNumbers(studentText);
+  const matched = [];
+
+  methodMarks.forEach(mp => {
+    const mpStr = String(mp).toLowerCase();
+    // Match if: a key number from the method point appears in the working,
+    // OR a key phrase (formula, substitution) appears
+    const mpNums = extractNumbers(mp);
+    const numHit = mpNums.length > 0 && mpNums.some(mn => studentNums.some(sn => numbersMatch(sn, mn)));
+
+    // Phrase hit: look for a distinctive chunk of the method point (e.g. "f=ma")
+    const phraseHit = mpStr.replace(/[^a-z0-9=]/g,'').length > 2
+      && studentLower.replace(/\s+/g,'').includes(mpStr.replace(/[^a-z0-9=]/g,'').slice(0,6));
+
+    if(numHit || phraseHit){
+      matched.push(mp);
+    }
+  });
+
+  // Award one mark per matched method point, capped at maxMarks - 1
+  // (can't get full marks via working alone if final answer is wrong)
+  const cap = Math.max(0, maxMarks - 1);
+  const awarded = Math.min(matched.length, cap);
+
+  return {
+    awarded,
+    matched,
+    note: awarded > 0 ? `${awarded} method mark(s) from working` : 'no method marks earned'
+  };
+}
+
+// ── Combined numerical marking: Scanner 1 then Scanner 2 if needed ──
+function markNumerical(studentText, ms, maxMarks){
+  const s1 = scanner1Numerical(studentText, ms, maxMarks);
+  if(s1.correct){
+    return {
+      awarded: s1.awarded,
+      maxMarks,
+      correct: true,
+      feedback: 'Correct answer.',
+      detail: s1.note,
+    };
+  }
+  // Wrong final answer — try for method marks
+  const s2 = scanner2Working(studentText, ms, maxMarks);
+  return {
+    awarded: s2.awarded,
+    maxMarks,
+    correct: false,
+    feedback: s2.awarded > 0
+      ? `Final answer incorrect, but ${s2.awarded} method mark(s) awarded for correct working.`
+      : 'Answer incorrect.',
+    detail: s2.note,
+    matchedMethod: s2.matched,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  MARKING ENGINE — Part 4: Groq vision reader + descriptive scanner
+//
+//  These call the Vercel serverless function /api/mark so the
+//  student's Groq key is handled server-side.
+//
+//  readAnswerImage() is the SWAPPABLE reader — replace its body
+//  later with your own image-to-text scanner; nothing else changes.
+// ══════════════════════════════════════════════════════════
+
+// Convert a File/Blob to a base64 data URL
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('Could not read file'));
+    r.readAsDataURL(file);
+  });
+}
+
+// ── SWAPPABLE READER: image → text ──
+// Currently uses Groq vision via the serverless function.
+// Later: replace the fetch with your own OCR and keep the signature.
+async function readAnswerImage(file, groqKey){
+  const imageBase64 = await fileToBase64(file);
+  const r = await fetch('/api/mark', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ action:'read', groqKey, imageBase64 }),
+  });
+  if(!r.ok){
+    const e = await r.json().catch(()=>({error:'read failed'}));
+    throw new Error(e.error || 'Could not read image');
+  }
+  const data = await r.json();
+  return data.text || '';
+}
+
+// ── SCANNER 3: descriptive marking via Groq ──
+async function markDescriptive(studentText, paired, groqKey){
+  const ms = paired.ms || {};
+  const r = await fetch('/api/mark', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      action:     'mark',
+      groqKey,
+      studentText,
+      question:   paired.text,
+      markPoints: ms.mark_points || [],
+      maxMarks:   paired.marks || ms.max_marks || 1,
+      subject:    (currentExam && currentExam.item && currentExam.item.subject) || '',
+      command:    paired.command || '',
+    }),
+  });
+  if(!r.ok){
+    const e = await r.json().catch(()=>({error:'mark failed'}));
+    throw new Error(e.error || 'Could not mark answer');
+  }
+  const data = await r.json();
+  return {
+    awarded:  data.awarded || 0,
+    maxMarks: data.maxMarks || paired.marks || 0,
+    correct:  (data.awarded || 0) >= (data.maxMarks || 0),
+    feedback: data.feedback || '',
+    pointsHit:    data.pointsHit || [],
+    pointsMissed: data.pointsMissed || [],
+  };
+}
+
+// ── MASTER: mark one answer end-to-end ──
+// image → read → Scanner 0 route → numerical OR descriptive → result
+async function markOneAnswer(file, paired, groqKey){
+  // 1. Read the handwriting
+  let studentText = '';
+  try {
+    studentText = await readAnswerImage(file, groqKey);
+  } catch(e){
+    return { awarded:0, maxMarks: paired.marks||0, feedback:'Could not read your answer image. '+e.message, error:true };
+  }
+
+  if(!studentText || studentText.trim().length < 1){
+    return { awarded:0, maxMarks: paired.marks||0, feedback:'No answer detected in the image.', studentText:'' };
+  }
+
+  // 2. Scanner 0 decides the route
+  const routing = scanner0(paired);
+
+  // 3. Route to the right scanner
+  if(routing.route === 'numerical'){
+    const result = markNumerical(studentText, paired.ms || {}, routing.maxMarks);
+    return { ...result, studentText, route:'numerical' };
+  } else {
+    const result = await markDescriptive(studentText, paired, groqKey);
+    return { ...result, studentText, route:'descriptive' };
+  }
+}
+
 // ══ EXAM ══
 async function startExam(item, type){
   // Ensure questions is always an array
@@ -6261,6 +6564,28 @@ async function startExam(item, type){
   goto('pg-exam');
   // Load the paper PDF into the left panel
   loadExamPDF(item);
+  // Load the matching mark scheme in the background (for marking later)
+  loadMarkScheme(item);
+}
+
+// Fetch the mark scheme questions array for the current paper
+async function loadMarkScheme(item){
+  item._markscheme = item._markscheme || [];
+  if(item._markscheme.length > 0) return; // already loaded
+  try {
+    const { data, error } = await supa
+      .from('content')
+      .select('questions')
+      .eq('type', 'markscheme')
+      .eq('subject', item.subject)
+      .eq('paper_code', item.paper_code)
+      .eq('session', item.session)
+      .eq('year', item.year)
+      .limit(1);
+    if(!error && data && data[0] && Array.isArray(data[0].questions)){
+      item._markscheme = data[0].questions;
+    }
+  } catch(e){ /* marking will fall back to descriptive */ }
 }
 
 async function loadExamPDF(item){
@@ -6359,89 +6684,128 @@ function markAnswer(){
   showToast('Answer photo saved ✓');
 }
 
-function submitAllAndFeedback(){
+async function submitAllAndFeedback(){
   // Record time for last question
   questionTimes[currentQ] = Math.round((Date.now() - questionStartTime) / 1000);
   stopTimer();
+
+  // Need a Groq key to mark
+  if(!groqApiKey || !groqApiKey.startsWith('gsk_')){
+    showToast('Add your Groq API key first (top bar → API Key) to enable marking');
+    return;
+  }
+
+  const item = currentExam.item;
+  const qs = item.questions || [];
+  const images = window._examImages || [];
+
+  if(images.length === 0){
+    showToast('Upload at least one answer before finishing');
+    return;
+  }
+
   const overlay = document.getElementById('loading-overlay');
   const bar = document.getElementById('loading-bar');
   const pct = document.getElementById('loading-pct');
   const steps = document.getElementById('loading-steps');
-  const STEPS = ['Reading responses…','Comparing to mark scheme…','Evaluating analysis depth…','Checking evaluative judgements…','Applying grade boundaries…','Compiling feedback…','Finalising report…'];
-  let progress = 0;
   overlay.classList.add('show');
-  bar.style.width = '0%'; pct.textContent = '0%'; steps.textContent = STEPS[0];
-  const interval = setInterval(() => {
-    progress += Math.random()*4+1.5;
-    if(progress >= 100){ progress = 100; clearInterval(interval); }
+  bar.style.width = '0%'; pct.textContent = '0%'; steps.textContent = 'Starting…';
+
+  // Pair questions with mark scheme + plan routing
+  const plan = planMarking(qs, item._markscheme || []);
+
+  // Mark each uploaded answer through the engine
+  const results = [];   // { qIndex, awarded, maxMarks, feedback, route }
+  const total = images.length;
+  let done = 0;
+
+  for(const img of images){
+    const idx = img.qIndex;
+    const paired = plan[idx];
+    if(!paired){ done++; continue; }
+
+    steps.textContent = `Marking question ${paired.q}…`;
+    try {
+      const result = await markOneAnswer(img.file, paired, groqApiKey);
+      results.push({ qIndex: idx, q: paired.q, ...result });
+    } catch(e){
+      results.push({ qIndex: idx, q: paired.q, awarded:0, maxMarks: paired.marks||0,
+        feedback:'Could not mark: '+e.message, route:'error' });
+    }
+
+    done++;
+    const progress = Math.round((done/total)*100);
     bar.style.width = progress+'%';
-    pct.textContent = Math.floor(progress)+'%';
-    steps.textContent = STEPS[Math.min(Math.floor(progress/15), STEPS.length-1)];
-    if(progress >= 100){ setTimeout(() => { overlay.classList.remove('show'); showResults(); }, 500); }
-  }, 80);
+    pct.textContent = progress+'%';
+  }
+
+  steps.textContent = 'Compiling report…';
+  bar.style.width = '100%'; pct.textContent = '100%';
+  setTimeout(() => { overlay.classList.remove('show'); showResults(results); }, 400);
 }
 
-function showResults(){
+function showResults(results){
   const item = currentExam.item;
-  const qs = item.questions;
-  const total = qs.reduce((a,q)=>a+q.marks,0);
-  const scored = Math.floor(total*(.54+Math.random()*.3));
-  const pctVal = Math.round((scored/total)*100);
-  let grade = pctVal>=90?'Distinction *':pctVal>=80?'Distinction':pctVal>=70?'Merit':pctVal>=60?'Pass':'Needs Review';
+  const qs = item.questions || [];
+  const plan = planMarking(qs, item._markscheme || []);
 
-  document.getElementById('res-score-big').textContent = scored+' / '+total;
+  // Total marks available across ALL questions in the paper
+  const totalAvailable = plan.reduce((a,p)=>a+(p.marks||0),0);
+
+  // Sum awarded from the results we have
+  let scored = 0, attemptedMax = 0;
+  const byIndex = {};
+  results.forEach(r => { byIndex[r.qIndex] = r; scored += (r.awarded||0); attemptedMax += (r.maxMarks||0); });
+
+  const pctVal = totalAvailable > 0 ? Math.round((scored/totalAvailable)*100) : 0;
+  let grade = pctVal>=90?'Distinction *':pctVal>=80?'Distinction':pctVal>=70?'Merit':pctVal>=60?'Pass':'Keep practising';
+
+  document.getElementById('res-score-big').textContent = scored+' / '+totalAvailable;
   document.getElementById('res-grade').textContent = grade;
   document.getElementById('res-paper-name').textContent = item.title;
-  document.getElementById('res-answered').textContent = Math.max(answeredQs.size, qs.length);
-  document.getElementById('res-total-marks').textContent = total;
+  document.getElementById('res-answered').textContent = results.length;
+  document.getElementById('res-total-marks').textContent = totalAvailable;
   document.getElementById('res-pct').textContent = pctVal+'%';
 
-  // Generate per-question data
+  // Per-question feedback list
   const list = document.getElementById('rfc-list'); list.innerHTML = '';
   questionScores = [];
-  qs.forEach((q, i) => {
-    const fb = MARK_FEEDBACK[i % MARK_FEEDBACK.length];
-    const qScored = Math.min(q.marks, Math.floor(q.marks*(.5+Math.random()*.45)));
-    questionScores[i] = qScored;
+  plan.forEach((p, i) => {
+    const r = byIndex[i];
+    const awarded = r ? r.awarded : 0;
+    questionScores[i] = awarded;
+    const fbText = r
+      ? (r.feedback || '') + (r.pointsMissed && r.pointsMissed.length ? ' Missed: '+r.pointsMissed.slice(0,2).join('; ') : '')
+      : 'Not attempted.';
+    const routeBadge = r && r.route ? `<span style="font-size:.62rem;opacity:.5;text-transform:uppercase;letter-spacing:.05em">${r.route}</span>` : '';
     const el = document.createElement('div'); el.className = 'rfc-item';
     el.innerHTML = `
-      <div class="rfc-q-num">${i+1}</div>
+      <div class="rfc-q-num">${p.q || (i+1)}</div>
       <div class="rfc-q-body">
-        <div class="rfc-q-score">${qScored} / ${q.marks} marks</div>
-        <div class="rfc-q-text">${q.q.length>90?q.q.slice(0,90)+'…':q.q}</div>
-        <div class="rfc-q-fb">${fb.fb}</div>
+        <div class="rfc-q-score">${awarded} / ${p.marks||0} marks ${routeBadge}</div>
+        <div class="rfc-q-text">${(p.text||'').length>90?(p.text||'').slice(0,90)+'…':(p.text||'Question '+(i+1))}</div>
+        <div class="rfc-q-fb">${fbText || 'No feedback.'}</div>
       </div>`;
     list.appendChild(el);
   });
 
-  // Pad questionTimes if needed
-  while(questionTimes.length < qs.length) questionTimes.push(Math.floor(30+Math.random()*120));
+  while(questionTimes.length < qs.length) questionTimes.push(0);
 
-  // ── Save to history ──
-  // Derive subject from exam title
-  const subjectKey = SUBJECTS.find(s=>item.title.toLowerCase().includes(s.name.toLowerCase().split(' ')[0]))?.name || 'Economics';
+  // Save to history
+  const subjectKey = item.subject || (SUBJECTS.find(s=>item.title.toLowerCase().includes(s.name.toLowerCase().split(' ')[0]))?.name) || 'Economics';
   const histEntry = {
-    title: item.title,
-    subject: subjectKey,
+    title: item.title, subject: subjectKey,
     date: new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'}),
-    scored: scored,
-    total: total,
-    pct: pctVal,
-    ts: Date.now()
+    scored, total: totalAvailable, pct: pctVal, ts: Date.now()
   };
   examHistory.push(histEntry);
-  if(examHistory.length > 30) examHistory.shift(); // keep last 30
+  if(examHistory.length > 30) examHistory.shift();
   localStorage.setItem('eco_history', JSON.stringify(examHistory));
   if(currentUserId){
     try {
       supa.from('exam_history').insert({
-        user_id: currentUserId,
-        title:   histEntry.title,
-        subject: histEntry.subject,
-        scored:  histEntry.scored,
-        total:   histEntry.total,
-        pct:     histEntry.pct,
-        ts:      histEntry.ts
+        user_id: currentUserId, title: histEntry.title, subject: histEntry.subject,
+        scored: histEntry.scored, total: histEntry.total, pct: histEntry.pct, ts: histEntry.ts
       });
     } catch(e){}
   }
