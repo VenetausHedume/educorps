@@ -6500,8 +6500,25 @@ async function markDescriptive(studentText, paired, groqKey){
   };
 }
 
+// Strip leading question labels like "1)", "a)", "(ii)", "iv)", "1. a)" etc.
+// from the transcribed text so they don't confuse the scanners.
+// Careful: must NOT eat decimal numbers like "2.4" in the actual answer.
+function stripQuestionLabels(text){
+  if(!text) return '';
+  let t = String(text).trim();
+  for(let i=0; i<4; i++){
+    const before = t;
+    // A label is: optional "(", then (number OR single letter OR roman numeral),
+    // then a closing ")" (optionally preceded by "."), then optional space.
+    // Requiring the ")" prevents eating "2.4" (decimal) — a bare "2." won't match.
+    t = t.replace(/^\s*\(?\s*(\d{1,2}|[a-z]|i{1,3}|iv|v|vi{0,3}|ix|x)\s*\.?\s*\)\s*/i, '');
+    if(t === before) break;
+  }
+  return t.trim();
+}
+
 // ── MASTER: mark one answer end-to-end ──
-// image → read → Scanner 0 route → numerical OR descriptive → result
+// image → read → clean → Scanner 0 route → numerical OR descriptive → result
 async function markOneAnswer(file, paired, groqKey){
   // 1. Read the handwriting
   let studentText = '';
@@ -6515,16 +6532,19 @@ async function markOneAnswer(file, paired, groqKey){
     return { awarded:0, maxMarks: paired.marks||0, feedback:'No answer detected in the image.', studentText:'' };
   }
 
+  // 1b. Strip question-number labels the student wrote (e.g. "1) a)")
+  const cleanText = stripQuestionLabels(studentText);
+
   // 2. Scanner 0 decides the route
   const routing = scanner0(paired);
 
   // 3. Route to the right scanner
   if(routing.route === 'numerical'){
-    const result = markNumerical(studentText, paired.ms || {}, routing.maxMarks);
-    return { ...result, studentText, route:'numerical' };
+    const result = markNumerical(cleanText, paired.ms || {}, routing.maxMarks);
+    return { ...result, studentText:cleanText, route:'numerical' };
   } else {
-    const result = await markDescriptive(studentText, paired, groqKey);
-    return { ...result, studentText, route:'descriptive' };
+    const result = await markDescriptive(cleanText, paired, groqKey);
+    return { ...result, studentText:cleanText, route:'descriptive' };
   }
 }
 
@@ -6703,6 +6723,9 @@ async function submitAllAndFeedback(){
     showToast('Upload at least one answer before finishing');
     return;
   }
+
+  // Make sure the mark scheme is loaded before we mark (await it now)
+  await loadMarkScheme(item);
 
   const overlay = document.getElementById('loading-overlay');
   const bar = document.getElementById('loading-bar');
