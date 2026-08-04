@@ -15,8 +15,11 @@
 // ══════════════════════════════════════════════════════════
 
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
-const TEXT_MODEL   = 'llama-3.3-70b-versatile';
+// Groq retires models often — if you see "model_not_found", check
+// https://console.groq.com/docs/deprecations and update these two lines.
+// Last verified: August 2026
+const VISION_MODEL = 'qwen/qwen3.6-27b';      // multimodal (reads handwriting)
+const TEXT_MODEL   = 'openai/gpt-oss-120b';   // text-only (descriptive marking)
 
 const SUPABASE_URL = 'https://yirvkjjrfvqeyjrzgahm.supabase.co';
 
