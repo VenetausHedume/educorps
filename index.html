@@ -6584,38 +6584,11 @@ async function startExam(item, type){
   goto('pg-exam');
   // Load the paper PDF into the left panel
   loadExamPDF(item);
-  // Load the matching mark scheme in the background (for marking later)
-  loadMarkScheme(item);
 }
 
-// Fetch the mark scheme questions array for the current paper
-async function loadMarkScheme(item){
-  item._markscheme = item._markscheme || [];
-  if(item._markscheme.length > 0) return; // already loaded
-  try {
-    // Match on subject + paper_code + session only (year can vary in type)
-    const { data, error } = await supa
-      .from('content')
-      .select('questions, year')
-      .eq('type', 'markscheme')
-      .eq('subject', item.subject)
-      .eq('paper_code', item.paper_code)
-      .eq('session', item.session);
-    if(error){ console.warn('MS load error:', error.message); return; }
-    if(data && data.length > 0){
-      // Prefer the row that has questions extracted
-      const withQ = data.find(d => Array.isArray(d.questions) && d.questions.length > 0);
-      if(withQ){
-        item._markscheme = withQ.questions;
-        console.log(`Mark scheme loaded: ${withQ.questions.length} entries`);
-      } else {
-        console.log('Mark scheme row found but no questions extracted');
-      }
-    } else {
-      console.log(`No mark scheme found for ${item.subject} ${item.paper_code} ${item.session}`);
-    }
-  } catch(e){ console.warn('MS load exception:', e.message); }
-}
+// Mark schemes are NEVER fetched client-side — RLS blocks them by design
+// so students can't read answers from the browser. The /api/mark serverless
+// function loads the mark scheme with the service-role key at marking time.
 
 async function loadExamPDF(item){
   const frame   = document.getElementById('exam-pdf-frame');
@@ -6733,9 +6706,6 @@ async function submitAllAndFeedback(){
     return;
   }
 
-  // Make sure the mark scheme is loaded before we mark (await it now)
-  await loadMarkScheme(item);
-
   const overlay = document.getElementById('loading-overlay');
   const bar = document.getElementById('loading-bar');
   const pct = document.getElementById('loading-pct');
@@ -6743,51 +6713,79 @@ async function submitAllAndFeedback(){
   overlay.classList.add('show');
   bar.style.width = '0%'; pct.textContent = '0%'; steps.textContent = 'Starting…';
 
-  // Pair questions with mark scheme + plan routing
-  const plan = planMarking(qs, item._markscheme || []);
-
-  // Mark each uploaded answer through the engine
-  const results = [];   // { qIndex, awarded, maxMarks, feedback, route }
+  // ── Step 1: read every uploaded image to text (client → /api/mark read) ──
+  const answers = [];
   const total = images.length;
   let done = 0;
 
   for(const img of images){
     const idx = img.qIndex;
-    const paired = plan[idx];
-    if(!paired){ done++; continue; }
-
-    steps.textContent = `Marking question ${paired.q}…`;
+    const qLabel = (qs[idx] && qs[idx].q) || (idx+1);
+    steps.textContent = `Reading question ${qLabel}…`;
+    let text = '';
     try {
-      const result = await markOneAnswer(img.file, paired, groqApiKey);
-      results.push({ qIndex: idx, q: paired.q, ...result });
+      text = await readAnswerImage(img.file, groqApiKey);
     } catch(e){
-      results.push({ qIndex: idx, q: paired.q, awarded:0, maxMarks: paired.marks||0,
-        feedback:'Could not mark: '+e.message, route:'error' });
+      text = '';
+      console.warn('Read failed for q'+qLabel+':', e.message);
     }
-
+    answers.push({ qIndex: idx, studentText: text });
     done++;
-    const progress = Math.round((done/total)*100);
-    bar.style.width = progress+'%';
-    pct.textContent = progress+'%';
+    const p = Math.round((done/total)*70); // reading is ~70% of the work
+    bar.style.width = p+'%'; pct.textContent = p+'%';
+  }
+
+  // ── Step 2: send to the server to mark (mark scheme never touches the browser) ──
+  steps.textContent = 'Marking against the mark scheme…';
+  bar.style.width = '80%'; pct.textContent = '80%';
+
+  let results = [];
+  let perQuestionMarks = [];
+  try {
+    const r = await fetch('/api/mark', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        action:   'markPaper',
+        groqKey:  groqApiKey,
+        paper:    { subject:item.subject, paper_code:item.paper_code, session:item.session },
+        questions: qs,
+        answers,
+      }),
+    });
+    if(!r.ok){
+      const e = await r.json().catch(()=>({error:'marking failed'}));
+      throw new Error(e.error || 'Marking failed');
+    }
+    const data = await r.json();
+    results = data.results || [];
+    perQuestionMarks = data.perQuestionMarks || [];
+    if(!data.markSchemeFound){
+      console.warn('No mark scheme found on the server for this paper — marked descriptively.');
+    }
+  } catch(e){
+    overlay.classList.remove('show');
+    showToast('Could not mark: ' + e.message);
+    return;
   }
 
   steps.textContent = 'Compiling report…';
   bar.style.width = '100%'; pct.textContent = '100%';
-  setTimeout(() => { overlay.classList.remove('show'); showResults(results); }, 400);
+  setTimeout(() => { overlay.classList.remove('show'); showResults(results, perQuestionMarks); }, 400);
 }
 
-function showResults(results){
+function showResults(results, perQuestionMarks){
   const item = currentExam.item;
   const qs = item.questions || [];
-  const plan = planMarking(qs, item._markscheme || []);
 
-  // Total marks available across ALL questions in the paper
-  const totalAvailable = plan.reduce((a,p)=>a+(p.marks||0),0);
+  // Marks per question come from the server (it has the mark scheme)
+  const marksFor = {};
+  (perQuestionMarks || []).forEach((p,i) => { marksFor[i] = p.marks || 0; });
+  const totalAvailable = qs.reduce((a,q,i) => a + (marksFor[i] || q.marks || 0), 0);
 
-  // Sum awarded from the results we have
-  let scored = 0, attemptedMax = 0;
+  let scored = 0;
   const byIndex = {};
-  results.forEach(r => { byIndex[r.qIndex] = r; scored += (r.awarded||0); attemptedMax += (r.maxMarks||0); });
+  results.forEach(r => { byIndex[r.qIndex] = r; scored += (r.awarded||0); });
 
   const pctVal = totalAvailable > 0 ? Math.round((scored/totalAvailable)*100) : 0;
   let grade = pctVal>=90?'Distinction *':pctVal>=80?'Distinction':pctVal>=70?'Merit':pctVal>=60?'Pass':'Keep practising';
@@ -6802,9 +6800,10 @@ function showResults(results){
   // Per-question feedback list
   const list = document.getElementById('rfc-list'); list.innerHTML = '';
   questionScores = [];
-  plan.forEach((p, i) => {
+  qs.forEach((q, i) => {
     const r = byIndex[i];
     const awarded = r ? r.awarded : 0;
+    const qMarks  = marksFor[i] || q.marks || 0;
     questionScores[i] = awarded;
     const fbText = r
       ? (r.feedback || '') + (r.pointsMissed && r.pointsMissed.length ? ' Missed: '+r.pointsMissed.slice(0,2).join('; ') : '')
@@ -6812,10 +6811,10 @@ function showResults(results){
     const routeBadge = r && r.route ? `<span style="font-size:.62rem;opacity:.5;text-transform:uppercase;letter-spacing:.05em">${r.route}</span>` : '';
     const el = document.createElement('div'); el.className = 'rfc-item';
     el.innerHTML = `
-      <div class="rfc-q-num">${p.q || (i+1)}</div>
+      <div class="rfc-q-num">${q.q || (i+1)}</div>
       <div class="rfc-q-body">
-        <div class="rfc-q-score">${awarded} / ${p.marks||0} marks ${routeBadge}</div>
-        <div class="rfc-q-text">${(p.text||'').length>90?(p.text||'').slice(0,90)+'…':(p.text||'Question '+(i+1))}</div>
+        <div class="rfc-q-score">${awarded} / ${qMarks} marks ${routeBadge}</div>
+        <div class="rfc-q-text">${(q.text||'').length>90?(q.text||'').slice(0,90)+'…':(q.text||'Question '+(i+1))}</div>
         <div class="rfc-q-fb">${fbText || 'No feedback.'}</div>
       </div>`;
     list.appendChild(el);
