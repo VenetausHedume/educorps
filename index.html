@@ -6593,19 +6593,28 @@ async function loadMarkScheme(item){
   item._markscheme = item._markscheme || [];
   if(item._markscheme.length > 0) return; // already loaded
   try {
+    // Match on subject + paper_code + session only (year can vary in type)
     const { data, error } = await supa
       .from('content')
-      .select('questions')
+      .select('questions, year')
       .eq('type', 'markscheme')
       .eq('subject', item.subject)
       .eq('paper_code', item.paper_code)
-      .eq('session', item.session)
-      .eq('year', item.year)
-      .limit(1);
-    if(!error && data && data[0] && Array.isArray(data[0].questions)){
-      item._markscheme = data[0].questions;
+      .eq('session', item.session);
+    if(error){ console.warn('MS load error:', error.message); return; }
+    if(data && data.length > 0){
+      // Prefer the row that has questions extracted
+      const withQ = data.find(d => Array.isArray(d.questions) && d.questions.length > 0);
+      if(withQ){
+        item._markscheme = withQ.questions;
+        console.log(`Mark scheme loaded: ${withQ.questions.length} entries`);
+      } else {
+        console.log('Mark scheme row found but no questions extracted');
+      }
+    } else {
+      console.log(`No mark scheme found for ${item.subject} ${item.paper_code} ${item.session}`);
     }
-  } catch(e){ /* marking will fall back to descriptive */ }
+  } catch(e){ console.warn('MS load exception:', e.message); }
 }
 
 async function loadExamPDF(item){
