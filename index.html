@@ -6450,22 +6450,75 @@ function fileToBase64(file){
   });
 }
 
+// Downscale an image before sending — vision tokens scale with pixel count,
+// and Groq's free tier is only 8000 tokens/minute. 1000px is plenty to read
+// handwriting. PDFs are passed through untouched.
+function downscaleImage(file, maxDim = 1000, quality = 0.75){
+  return new Promise((resolve) => {
+    if(!file.type || !file.type.startsWith('image/')){
+      return fileToBase64(file).then(resolve).catch(()=>resolve(null));
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width:w, height:h } = img;
+      if(w > maxDim || h > maxDim){
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      try { resolve(cv.toDataURL('image/jpeg', quality)); }
+      catch(e){ resolve(null); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 // ── SWAPPABLE READER: image → text ──
 // Currently uses Groq vision via the serverless function.
 // Later: replace the fetch with your own OCR and keep the signature.
+// Retries on rate limits (429) with backoff.
 async function readAnswerImage(file, groqKey){
-  const imageBase64 = await fileToBase64(file);
-  const r = await fetch('/api/mark', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ action:'read', groqKey, imageBase64 }),
-  });
-  if(!r.ok){
+  let imageBase64 = await downscaleImage(file);
+  if(!imageBase64) imageBase64 = await fileToBase64(file);
+
+  const MAX_TRIES = 4;
+  let lastErr = 'read failed';
+
+  for(let attempt = 1; attempt <= MAX_TRIES; attempt++){
+    const r = await fetch('/api/mark', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ action:'read', groqKey, imageBase64 }),
+    });
+
+    if(r.ok){
+      const data = await r.json();
+      return data.text || '';
+    }
+
     const e = await r.json().catch(()=>({error:'read failed'}));
-    throw new Error(e.error || 'Could not read image');
+    lastErr = e.error || 'Could not read image';
+
+    // Rate limited → wait and retry
+    const rateLimited = r.status === 429 || /rate limit/i.test(lastErr);
+    if(rateLimited && attempt < MAX_TRIES){
+      // Groq often tells us how long to wait — use it if present
+      const m = lastErr.match(/try again in ([\d.]+)s/i);
+      const waitMs = m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : attempt * 12000;
+      await sleep(Math.min(waitMs, 45000));
+      continue;
+    }
+    throw new Error(lastErr);
   }
-  const data = await r.json();
-  return data.text || '';
+  throw new Error(lastErr);
 }
 
 // ── SCANNER 3: descriptive marking via Groq ──
@@ -6717,22 +6770,34 @@ async function submitAllAndFeedback(){
   const answers = [];
   const total = images.length;
   let done = 0;
+  let readErrors = 0;
 
   for(const img of images){
     const idx = img.qIndex;
     const qLabel = (qs[idx] && qs[idx].q) || (idx+1);
-    steps.textContent = `Reading question ${qLabel}…`;
+    steps.textContent = `Reading question ${qLabel}…  (${done+1} of ${total})`;
     let text = '';
     try {
       text = await readAnswerImage(img.file, groqApiKey);
     } catch(e){
       text = '';
       console.warn('Read failed for q'+qLabel+':', e.message);
+      readErrors++;
     }
     answers.push({ qIndex: idx, studentText: text });
     done++;
     const p = Math.round((done/total)*70); // reading is ~70% of the work
     bar.style.width = p+'%'; pct.textContent = p+'%';
+
+    // Space out requests — Groq's free tier caps tokens per minute and
+    // images are expensive. Without this gap the later reads all 429.
+    if(done < total) await sleep(5000);
+  }
+
+  if(readErrors === total){
+    overlay.classList.remove('show');
+    showToast('Could not read any answers — check your Groq key and try again');
+    return;
   }
 
   // ── Step 2: send to the server to mark (mark scheme never touches the browser) ──
