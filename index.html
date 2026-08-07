@@ -4507,8 +4507,8 @@ body::before {
 
       <!-- Nav section — question dots + progress, fixed at bottom -->
       <div class="exam-nav-section">
-        <div class="aside-label">Questions in this paper</div>
-        <div class="q-nav" id="q-nav"></div>
+        <div class="aside-label">Your pages</div>
+        <div id="page-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
         <div id="exam-progress" class="exam-progress-txt">0 pages added</div>
         <div class="exam-meta-row" id="exam-meta"></div>
       </div>
@@ -6597,7 +6597,6 @@ async function startExam(item, type){
   item.duration = examDuration;
   timerSecs = examDuration * 60;
   updateTimerDisplay();
-  renderQNav(item.questions);
   renderPages();
   if(item.questions.length === 0){
     const hint = document.getElementById('pages-hint');
@@ -6642,25 +6641,14 @@ async function loadExamPDF(item){
     loading.innerHTML = `<div style="font-size:13px;opacity:.6">Could not load paper: ${e.message}</div>`;
   }
 }
-function renderQNav(qs){
-  const nav = document.getElementById('q-nav'); nav.innerHTML = '';
-  qs.forEach((q,i) => {
-    const d = document.createElement('div'); d.className = 'q-dot'+(i===0?' active':'');
-    d.id = 'qdot-'+i;
-    d.textContent = q.q || (i+1);
-    d.onclick = () => loadQuestion(i);
-    nav.appendChild(d);
-  });
-}
+// renderQNav removed — the side panel lists uploaded pages instead of questions.
+
 function loadQuestion(idx){
-  // Kept so the question dots stay clickable; answers now come from page
-  // uploads rather than a per-question box, so this only moves the highlight.
-  const qs = currentExam.item.questions || [];
-  if(idx < 0) idx = 0;
-  if(idx >= qs.length) idx = Math.max(0, qs.length - 1);
-  currentQ = idx;
-  document.querySelectorAll('.q-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
+  // No per-question UI any more — answers arrive as photographed pages.
+  const qs = (currentExam && currentExam.item.questions) || [];
+  currentQ = Math.max(0, Math.min(idx, Math.max(0, qs.length - 1)));
 }
+
 function prevQuestion(){ loadQuestion(currentQ-1); }
 function nextQuestion(){
   if(currentQ >= currentExam.item.questions.length - 1){
@@ -7001,22 +6989,61 @@ function removePage(i){
 }
 function renderPages(){
   const pages = window._examPages || [];
+
+  // Compact list under the upload box
   const box = document.getElementById('pages-preview');
-  if(box){
-    box.innerHTML = '';
+  if(box) box.innerHTML = '';
+
+  // Ordered, reorderable list in the side panel
+  const list = document.getElementById('page-list');
+  if(list){
+    list.innerHTML = '';
+    if(pages.length === 0){
+      list.innerHTML = '<div style="opacity:.5;font-size:.8rem;padding:6px 0">' +
+        'No pages yet. Photograph each page of your answers and add them in order.</div>';
+    }
     pages.forEach((f, i) => {
       const row = document.createElement('div');
-      row.className = 'up-file';
-      row.innerHTML = `<span>Page ${i+1} — ${f.name}</span>` +
-                      `<button onclick="removePage(${i})">✕</button>`;
-      box.appendChild(row);
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;border:2px solid var(--ink);' +
+        'border-radius:10px;padding:7px 10px;background:var(--paper);' +
+        'box-shadow:2px 3px 0 var(--shadow);transform:rotate(' + (i%2 ? '.4' : '-.4') + 'deg)';
+      row.innerHTML =
+        '<span style="display:grid;place-items:center;width:24px;height:24px;flex:none;' +
+          'border-radius:7px;background:var(--hi);color:var(--ink);font-family:\'Patrick Hand\',cursive;' +
+          'font-size:13px">' + (i+1) + '</span>' +
+        '<span style="flex:1;min-width:0;font-size:.78rem;overflow:hidden;' +
+          'text-overflow:ellipsis;white-space:nowrap" title="' + f.name + '">' + f.name + '</span>' +
+        '<button title="Move up" onclick="movePage(' + i + ',-1)" ' +
+          (i === 0 ? 'disabled ' : '') +
+          'style="background:none;border:none;cursor:pointer;opacity:' + (i===0?'.25':'.7') + ';padding:2px 4px">↑</button>' +
+        '<button title="Move down" onclick="movePage(' + i + ',1)" ' +
+          (i === pages.length-1 ? 'disabled ' : '') +
+          'style="background:none;border:none;cursor:pointer;opacity:' + (i===pages.length-1?'.25':'.7') + ';padding:2px 4px">↓</button>' +
+        '<button title="Remove" onclick="removePage(' + i + ')" ' +
+          'style="background:none;border:none;cursor:pointer;opacity:.7;padding:2px 4px">✕</button>';
+      list.appendChild(row);
     });
   }
+
   const cnt = document.getElementById('pages-count');
   if(cnt) cnt.textContent = pages.length + ' page' + (pages.length!==1?'s':'');
   const prog = document.getElementById('exam-progress');
-  if(prog) prog.textContent = pages.length + ' page' + (pages.length!==1?'s':'') + ' added';
+  if(prog){
+    prog.textContent = pages.length === 0
+      ? 'Add your pages, then finish'
+      : pages.length + ' page' + (pages.length!==1?'s':'') + ' ready to mark';
+  }
 }
+
+// Move a page up (-1) or down (+1) in the order
+function movePage(i, delta){
+  const pages = window._examPages || [];
+  const j = i + delta;
+  if(j < 0 || j >= pages.length) return;
+  [pages[i], pages[j]] = [pages[j], pages[i]];
+  renderPages();
+}
+
 
 function qmFile(e){ showToast(e.target.files[0].name+' uploaded ✓'); }
 function qmDrop(e){ e.preventDefault(); showToast(e.dataTransfer.files[0]?.name+' uploaded ✓'); }
