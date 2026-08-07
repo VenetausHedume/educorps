@@ -3914,6 +3914,18 @@ body::before {
       </div>
     </div>
     <div class="api-err" id="api-err"></div>
+
+    <!-- OCR endpoint — the handwriting reader -->
+    <div class="api-input-row" style="margin-top:4px;padding-top:16px;border-top:1px dashed var(--rule)">
+      <label class="api-input-label">Handwriting reader (OCR) endpoint</label>
+      <div class="api-key-wrap">
+        <input class="api-key-inp" id="ocr-url-inp" type="text" placeholder="https://….trycloudflare.com">
+      </div>
+      <div style="font-size:.68rem;opacity:.55;margin-top:8px;line-height:1.6">
+        Where your answer pages get read. Change this if the tunnel URL changes.
+      </div>
+      <button class="sec-btn" style="margin-top:10px;width:100%" onclick="saveOcrUrl()">Save reader URL</button>
+    </div>
     <button class="fill-btn" onclick="saveApiKey()">
       <span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -4456,43 +4468,37 @@ body::before {
       <!-- Answer section — scrollable, fills available height -->
       <div class="exam-answer-section">
 
-        <!-- Current question header -->
+        <!-- Page upload header -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div class="answer-mode-label" id="q-label" style="margin:0">Question 1</div>
-          <span id="q-marks" style="background:rgba(0,224,255,.12);color:var(--accent);font-size:11px;padding:3px 9px;border-radius:8px;font-weight:600">— marks</span>
+          <div class="answer-mode-label" id="pages-label" style="margin:0">Your answer pages</div>
+          <span id="pages-count" style="background:rgba(0,224,255,.12);color:var(--accent);font-size:11px;padding:3px 9px;border-radius:8px;font-weight:600">0 pages</span>
         </div>
-        <div style="font-size:11px;color:var(--grey);margin-bottom:12px" id="q-hint">Read the question on the left, then upload your answer.</div>
+        <div style="font-size:11px;color:var(--grey);margin-bottom:12px" id="pages-hint">
+          Write your answers on paper, numbering each one (1a, 1b, 2a…). Photograph each page and add it below.
+        </div>
 
-        <!-- Upload only — no typing allowed -->
+        <!-- Page upload — multiple images -->
         <div class="upload-area" id="mode-upload"
           ondragover="this.classList.add('drag-over');event.preventDefault()"
           ondragleave="this.classList.remove('drag-over')"
-          ondrop="handleExamDrop(event)"
+          ondrop="handlePageDrop(event)"
           onclick="document.getElementById('exam-file').click()">
           <svg><use href="#ic-upload"/></svg>
-          Upload a photo of your written answer
-          <span class="upload-area-sub">PNG · JPG · PDF</span>
-          <div id="upload-preview" style="width:100%;display:flex;flex-direction:column;gap:5px;margin-top:4px"></div>
+          Add a photo of a full answer page
+          <span class="upload-area-sub">PNG · JPG — one photo per page</span>
         </div>
 
-        <input type="file" id="exam-file" accept=".png,.jpg,.jpeg,.pdf" style="display:none" onchange="handleExamFile(event)">
+        <div id="pages-preview" style="width:100%;display:flex;flex-direction:column;gap:5px;margin-top:4px"></div>
 
-        <!-- Action buttons -->
-        <div class="exam-action-row">
-          <button class="sec-btn" onclick="prevQuestion()">← Prev</button>
-          <button class="mark-btn" onclick="markAnswer()">
-            <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><use href="#ic-check"/></svg>Save</span>
-          </button>
-          <button class="sec-btn" onclick="nextQuestion()">Next →</button>
-        </div>
+        <input type="file" id="exam-file" accept=".png,.jpg,.jpeg" multiple style="display:none" onchange="handlePageFiles(event)">
 
-        <button class="mark-btn finish-btn" onclick="submitAllAndFeedback()" id="finish-btn" style="width:100%;margin-top:8px">
+        <button class="mark-btn finish-btn" onclick="submitAllAndFeedback()" id="finish-btn" style="width:100%;margin-top:10px">
           <span>✓ Finish the paper</span>
         </button>
 
-        <!-- Per-question result -->
+        <!-- Reading result -->
         <div class="result-box" id="result-box">
-          <div class="result-box-label">Answer Saved</div>
+          <div class="result-box-label">Pages read</div>
           <div class="result-score" id="result-score">—</div>
           <div class="result-feedback" id="result-feedback">—</div>
         </div>
@@ -4501,9 +4507,9 @@ body::before {
 
       <!-- Nav section — question dots + progress, fixed at bottom -->
       <div class="exam-nav-section">
-        <div class="aside-label">Questions</div>
+        <div class="aside-label">Questions in this paper</div>
         <div class="q-nav" id="q-nav"></div>
-        <div id="exam-progress" class="exam-progress-txt">0 answered</div>
+        <div id="exam-progress" class="exam-progress-txt">0 pages added</div>
         <div class="exam-meta-row" id="exam-meta"></div>
       </div>
 
@@ -5433,6 +5439,8 @@ function gotoApiSetup(){
     const badge = document.getElementById('api-saved-badge');
     if(badge) badge.style.display = 'none';
   }
+  const ocrInp = document.getElementById('ocr-url-inp');
+  if(ocrInp) ocrInp.value = getOcrUrl();
   goto('pg-api');
 }
 async function saveApiKey(){
@@ -6436,7 +6444,7 @@ function markNumerical(studentText, ms, maxMarks){
 //  These call the Vercel serverless function /api/mark so the
 //  student's Groq key is handled server-side.
 //
-//  readAnswerImage() is the SWAPPABLE reader — replace its body
+//  readAnswerPage() is the swappable reader — point it anywhere
 //  later with your own image-to-text scanner; nothing else changes.
 // ══════════════════════════════════════════════════════════
 
@@ -6481,44 +6489,43 @@ function downscaleImage(file, maxDim = 1000, quality = 0.75){
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── SWAPPABLE READER: image → text ──
-// Currently uses Groq vision via the serverless function.
-// Later: replace the fetch with your own OCR and keep the signature.
-// Retries on rate limits (429) with backoff.
-async function readAnswerImage(file, groqKey){
-  let imageBase64 = await downscaleImage(file);
-  if(!imageBase64) imageBase64 = await fileToBase64(file);
+// ══════════════════════════════════════════════════════════
+//  READER — your own Surya OCR endpoint
+//
+//  Sends a whole answer PAGE and gets back the text already split
+//  into {questionId: answer}. Replaces Groq vision entirely: no token
+//  cost, no per-minute rate limit, and far better on handwriting.
+//
+//  The endpoint URL is a setting because a Cloudflare quick tunnel
+//  gives a new URL each time it restarts.
+// ══════════════════════════════════════════════════════════
 
-  const MAX_TRIES = 4;
-  let lastErr = 'read failed';
+const DEFAULT_OCR_URL = 'https://library-effective-wishes-trainer.trycloudflare.com';
 
-  for(let attempt = 1; attempt <= MAX_TRIES; attempt++){
-    const r = await fetch('/api/mark', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ action:'read', groqKey, imageBase64 }),
-    });
+function getOcrUrl(){
+  return (localStorage.getItem('eco_ocr_url') || DEFAULT_OCR_URL).replace(/\/+$/, '');
+}
+function setOcrUrl(url){
+  localStorage.setItem('eco_ocr_url', String(url || '').trim().replace(/\/+$/, ''));
+  showToast('Reader URL saved');
+}
+function saveOcrUrl(){
+  const inp = document.getElementById('ocr-url-inp');
+  if(!inp) return;
+  const v = inp.value.trim();
+  if(v && !/^https?:\/\//i.test(v)){ showToast('URL must start with https://'); return; }
+  setOcrUrl(v || DEFAULT_OCR_URL);
+}
 
-    if(r.ok){
-      const data = await r.json();
-      return data.text || '';
-    }
-
-    const e = await r.json().catch(()=>({error:'read failed'}));
-    lastErr = e.error || 'Could not read image';
-
-    // Rate limited → wait and retry
-    const rateLimited = r.status === 429 || /rate limit/i.test(lastErr);
-    if(rateLimited && attempt < MAX_TRIES){
-      // Groq often tells us how long to wait — use it if present
-      const m = lastErr.match(/try again in ([\d.]+)s/i);
-      const waitMs = m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : attempt * 12000;
-      await sleep(Math.min(waitMs, 45000));
-      continue;
-    }
-    throw new Error(lastErr);
-  }
-  throw new Error(lastErr);
+// Read ONE page image -> { text, answers }
+async function readAnswerPage(file){
+  const fd = new FormData();
+  fd.append('file', file);
+  const r = await fetch(getOcrUrl() + '/read', { method:'POST', body: fd });
+  if(!r.ok) throw new Error(`OCR returned ${r.status}`);
+  const data = await r.json();
+  if(data.error) throw new Error(data.error);
+  return { text: data.text || '', answers: data.answers || {} };
 }
 
 // ── SCANNER 3: descriptive marking via Groq ──
@@ -6570,36 +6577,7 @@ function stripQuestionLabels(text){
   return t.trim();
 }
 
-// ── MASTER: mark one answer end-to-end ──
-// image → read → clean → Scanner 0 route → numerical OR descriptive → result
-async function markOneAnswer(file, paired, groqKey){
-  // 1. Read the handwriting
-  let studentText = '';
-  try {
-    studentText = await readAnswerImage(file, groqKey);
-  } catch(e){
-    return { awarded:0, maxMarks: paired.marks||0, feedback:'Could not read your answer image. '+e.message, error:true };
-  }
-
-  if(!studentText || studentText.trim().length < 1){
-    return { awarded:0, maxMarks: paired.marks||0, feedback:'No answer detected in the image.', studentText:'' };
-  }
-
-  // 1b. Strip question-number labels the student wrote (e.g. "1) a)")
-  const cleanText = stripQuestionLabels(studentText);
-
-  // 2. Scanner 0 decides the route
-  const routing = scanner0(paired);
-
-  // 3. Route to the right scanner
-  if(routing.route === 'numerical'){
-    const result = markNumerical(cleanText, paired.ms || {}, routing.maxMarks);
-    return { ...result, studentText:cleanText, route:'numerical' };
-  } else {
-    const result = await markDescriptive(cleanText, paired, groqKey);
-    return { ...result, studentText:cleanText, route:'descriptive' };
-  }
-}
+// Marking itself runs server-side in /api/mark — see submitAllAndFeedback().
 
 // ══ EXAM ══
 async function startExam(item, type){
@@ -6608,7 +6586,7 @@ async function startExam(item, type){
   currentExam = {item, type}; currentQ = 0;
   answeredQs = new Set(); markedQs = new Set();
   questionTimes = []; questionScores = [];
-  window._examImages = [];
+  window._examPages = [];
   questionStartTime = Date.now();
   document.getElementById('exam-name').textContent = item.title;
   document.getElementById('exam-detail').textContent = type==='paper' ? (item.sub||'') : (item.sub||'')+(selectedDifficulty?' · '+selectedDifficulty:'');
@@ -6620,14 +6598,10 @@ async function startExam(item, type){
   timerSecs = examDuration * 60;
   updateTimerDisplay();
   renderQNav(item.questions);
-  if(item.questions.length > 0){
-    loadQuestion(0);
-  } else {
-    // No questions extracted yet — show a friendly message in the answer panel
-    document.getElementById('q-label').textContent = 'Not ready yet';
-    document.getElementById('q-marks').textContent = '—';
-    const hint = document.getElementById('q-hint');
-    if(hint) hint.textContent = 'This paper is being prepared. Questions will be available soon.';
+  renderPages();
+  if(item.questions.length === 0){
+    const hint = document.getElementById('pages-hint');
+    if(hint) hint.textContent = 'This paper is still being prepared — its questions are not available yet.';
   }
   document.getElementById('result-box').classList.remove('open');
   updateProgress();
@@ -6679,39 +6653,13 @@ function renderQNav(qs){
   });
 }
 function loadQuestion(idx){
-  // Record time spent on previous question
-  if(questionTimes.length <= currentQ) {
-    questionTimes[currentQ] = Math.round((Date.now() - questionStartTime) / 1000);
-  }
-  questionStartTime = Date.now();
-
-  const qs = currentExam.item.questions;
+  // Kept so the question dots stay clickable; answers now come from page
+  // uploads rather than a per-question box, so this only moves the highlight.
+  const qs = currentExam.item.questions || [];
   if(idx < 0) idx = 0;
-  if(idx >= qs.length) idx = qs.length - 1;
+  if(idx >= qs.length) idx = Math.max(0, qs.length - 1);
   currentQ = idx;
-  const q = qs[idx];
-
-  document.getElementById('q-label').textContent = `Question ${q.q || (idx+1)}`;
-  document.getElementById('q-marks').textContent = `${q.marks || 0} mark${(q.marks===1)?'':'s'}`;
-
-  document.getElementById('result-box').classList.remove('open');
-
-  // Restore the saved image for this question if one exists
-  const uploadPreview = document.getElementById('upload-preview');
-  if(uploadPreview){
-    uploadPreview.innerHTML = '';
-    const saved = (window._examImages||[]).find(x => x.qIndex === idx);
-    if(saved){
-      const row = document.createElement('div'); row.className = 'up-file';
-      row.innerHTML = `<span>${saved.file.name}</span><button onclick="removeExamImage(${idx});this.parentElement.remove()">✕</button>`;
-      uploadPreview.appendChild(row);
-    }
-  }
-
-  document.querySelectorAll('.q-dot').forEach((d,i) => {
-    d.classList.toggle('active', i===idx);
-    if(markedQs.has(i)) d.classList.add('done');
-  });
+  document.querySelectorAll('.q-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
 }
 function prevQuestion(){ loadQuestion(currentQ-1); }
 function nextQuestion(){
@@ -6722,90 +6670,101 @@ function nextQuestion(){
   loadQuestion(currentQ+1);
 }
 function updateProgress(){
-  document.getElementById('exam-progress').textContent = `${answeredQs.size} of ${currentExam.item.questions.length} answered`;
+  const n = (window._examPages || []).length;
+  const el = document.getElementById('exam-progress');
+  if(el) el.textContent = n + ' page' + (n!==1?'s':'') + ' added';
 }
 function setMode(mode, btn){
   // Upload is the only mode — no-op
 }
-function markAnswer(){
-  const preview = document.getElementById('upload-preview');
-  if(!preview || preview.children.length===0){ showToast('Please upload a photo of your written answer first'); return; }
-  answeredQs.add(currentQ); markedQs.add(currentQ);
-  document.getElementById('qdot-'+currentQ)?.classList.add('done');
-  updateProgress();
-  document.getElementById('result-score').textContent = 'Saved';
-  document.getElementById('result-feedback').textContent = 'Photo recorded. Move to the next question or finish for AI marking.';
-  document.getElementById('result-box').classList.add('open');
-  showToast('Answer photo saved ✓');
-}
+// markAnswer() removed — answers now arrive as whole photographed pages.
 
 async function submitAllAndFeedback(){
-  // Record time for last question
   questionTimes[currentQ] = Math.round((Date.now() - questionStartTime) / 1000);
   stopTimer();
 
-  // Need a Groq key to mark
   if(!groqApiKey || !groqApiKey.startsWith('gsk_')){
     showToast('Add your Groq API key first (top bar → API Key) to enable marking');
     return;
   }
 
-  const item = currentExam.item;
-  const qs = item.questions || [];
-  const images = window._examImages || [];
+  const item  = currentExam.item;
+  const qs    = item.questions || [];
+  const pages = window._examPages || [];
 
-  if(images.length === 0){
-    showToast('Upload at least one answer before finishing');
+  if(pages.length === 0){
+    showToast('Add at least one photo of your answer pages before finishing');
     return;
   }
 
   const overlay = document.getElementById('loading-overlay');
-  const bar = document.getElementById('loading-bar');
-  const pct = document.getElementById('loading-pct');
+  const bar   = document.getElementById('loading-bar');
+  const pct   = document.getElementById('loading-pct');
   const steps = document.getElementById('loading-steps');
   overlay.classList.add('show');
   bar.style.width = '0%'; pct.textContent = '0%'; steps.textContent = 'Starting…';
 
-  // ── Step 1: read every uploaded image to text (client → /api/mark read) ──
-  const answers = [];
-  const total = images.length;
-  let done = 0;
+  // ── 1. Read every page through the OCR endpoint ──
+  const answersById = {};   // {"1a": "C", ...}
+  const rawTexts = [];
   let readErrors = 0;
 
-  for(const img of images){
-    const idx = img.qIndex;
-    const qLabel = (qs[idx] && qs[idx].q) || (idx+1);
-    steps.textContent = `Reading question ${qLabel}…  (${done+1} of ${total})`;
-    let text = '';
+  for(let i = 0; i < pages.length; i++){
+    steps.textContent = `Reading page ${i+1} of ${pages.length}…`;
     try {
-      text = await readAnswerImage(img.file, groqApiKey);
+      const { text, answers } = await readAnswerPage(pages[i]);
+      rawTexts.push(text);
+      // Earlier pages win if the same label appears twice
+      Object.entries(answers).forEach(([qid, ans]) => {
+        if(!(qid in answersById)) answersById[qid] = ans;
+      });
     } catch(e){
-      text = '';
-      console.warn('Read failed for q'+qLabel+':', e.message);
       readErrors++;
+      console.warn(`Page ${i+1} failed:`, e.message);
     }
-    answers.push({ qIndex: idx, studentText: text });
-    done++;
-    const p = Math.round((done/total)*70); // reading is ~70% of the work
+    const p = Math.round(((i+1)/pages.length)*70);
     bar.style.width = p+'%'; pct.textContent = p+'%';
-
-    // Space out requests — Groq's free tier caps tokens per minute and
-    // images are expensive. Without this gap the later reads all 429.
-    if(done < total) await sleep(5000);
   }
 
-  if(readErrors === total){
+  if(readErrors === pages.length){
     overlay.classList.remove('show');
-    showToast('Could not read any answers — check your Groq key and try again');
+    showToast('Could not read any pages — is the OCR service running?');
     return;
   }
 
-  // ── Step 2: send to the server to mark (mark scheme never touches the browser) ──
-  steps.textContent = 'Marking against the mark scheme…';
+  const foundIds = Object.keys(answersById);
+  if(foundIds.length === 0){
+    overlay.classList.remove('show');
+    showToast('No numbered answers found. Make sure each answer is labelled (1a, 1b, 2a…)');
+    console.warn('Recognized text with no labels:', rawTexts.join('\n---\n'));
+    return;
+  }
+
+  // ── 2. Map answers onto question indices ──
+  const lookup = {};
+  qs.forEach((q, i) => { lookup[normalizeQID(q.q)] = i; });
+
+  const answers = [];
+  const unmatched = [];
+  foundIds.forEach(qid => {
+    const idx = lookup[normalizeQID(qid)];
+    if(idx === undefined) unmatched.push(qid);
+    else answers.push({ qIndex: idx, studentText: answersById[qid] });
+  });
+
+  if(unmatched.length) console.warn('Answers with no matching question:', unmatched);
+
+  if(answers.length === 0){
+    overlay.classList.remove('show');
+    showToast('Your answer labels did not match any question in this paper');
+    return;
+  }
+
+  // ── 3. Mark on the server ──
+  steps.textContent = `Marking ${answers.length} answer${answers.length!==1?'s':''}…`;
   bar.style.width = '80%'; pct.textContent = '80%';
 
-  let results = [];
-  let perQuestionMarks = [];
+  let results = [], perQuestionMarks = [];
   try {
     const r = await fetch('/api/mark', {
       method:'POST',
@@ -6825,9 +6784,7 @@ async function submitAllAndFeedback(){
     const data = await r.json();
     results = data.results || [];
     perQuestionMarks = data.perQuestionMarks || [];
-    if(!data.markSchemeFound){
-      console.warn('No mark scheme found on the server for this paper — marked descriptively.');
-    }
+    if(!data.markSchemeFound) console.warn('No mark scheme found for this paper — marked descriptively.');
   } catch(e){
     overlay.classList.remove('show');
     showToast('Could not mark: ' + e.message);
@@ -7020,37 +6977,47 @@ function updateTimerDisplay(){
 }
 
 // ══ FILES ══
-function handleExamFile(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  if(!window._examImages) window._examImages = [];
-  window._examImages = window._examImages.filter(x => x.qIndex !== currentQ);
-  window._examImages.push({ qIndex: currentQ, file });
-  const preview = document.getElementById('upload-preview');
-  preview.innerHTML = '';
-  const row = document.createElement('div'); row.className = 'up-file';
-  row.innerHTML = `<span>${file.name}</span><button onclick="removeExamImage(${currentQ});this.parentElement.remove()">✕</button>`;
-  preview.appendChild(row);
-  showToast('Answer photo attached ✓');
+function handlePageFiles(e){
+  addPages(Array.from(e.target.files || []));
+  e.target.value = '';   // allow re-picking the same file
 }
-function handleExamDrop(e){
+function handlePageDrop(e){
   e.preventDefault();
   document.getElementById('mode-upload').classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if(!file) return;
-  if(!window._examImages) window._examImages = [];
-  window._examImages = window._examImages.filter(x => x.qIndex !== currentQ);
-  window._examImages.push({ qIndex: currentQ, file });
-  const preview = document.getElementById('upload-preview');
-  preview.innerHTML = '';
-  const row = document.createElement('div'); row.className = 'up-file';
-  row.innerHTML = `<span>${file.name}</span><button onclick="removeExamImage(${currentQ});this.parentElement.remove()">✕</button>`;
-  preview.appendChild(row);
-  showToast('Answer photo attached ✓');
+  addPages(Array.from(e.dataTransfer.files || []));
 }
-function removeExamImage(qIndex){
-  if(window._examImages) window._examImages = window._examImages.filter(x => x.qIndex !== qIndex);
+function addPages(files){
+  if(!window._examPages) window._examPages = [];
+  const images = files.filter(f => f.type && f.type.startsWith('image/'));
+  if(images.length === 0){ showToast('Please add image files (PNG or JPG)'); return; }
+  images.forEach(f => window._examPages.push(f));
+  renderPages();
+  showToast(images.length + ' page' + (images.length!==1?'s':'') + ' added');
 }
+function removePage(i){
+  if(!window._examPages) return;
+  window._examPages.splice(i, 1);
+  renderPages();
+}
+function renderPages(){
+  const pages = window._examPages || [];
+  const box = document.getElementById('pages-preview');
+  if(box){
+    box.innerHTML = '';
+    pages.forEach((f, i) => {
+      const row = document.createElement('div');
+      row.className = 'up-file';
+      row.innerHTML = `<span>Page ${i+1} — ${f.name}</span>` +
+                      `<button onclick="removePage(${i})">✕</button>`;
+      box.appendChild(row);
+    });
+  }
+  const cnt = document.getElementById('pages-count');
+  if(cnt) cnt.textContent = pages.length + ' page' + (pages.length!==1?'s':'');
+  const prog = document.getElementById('exam-progress');
+  if(prog) prog.textContent = pages.length + ' page' + (pages.length!==1?'s':'') + ' added';
+}
+
 function qmFile(e){ showToast(e.target.files[0].name+' uploaded ✓'); }
 function qmDrop(e){ e.preventDefault(); showToast(e.dataTransfer.files[0]?.name+' uploaded ✓'); }
 function doQuickMark(){
