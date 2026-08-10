@@ -6525,7 +6525,9 @@ async function readAnswerPage(file){
   if(!r.ok) throw new Error(`OCR returned ${r.status}`);
   const data = await r.json();
   if(data.error) throw new Error(data.error);
-  return { text: data.text || '', answers: data.answers || {} };
+  // `image` is the page itself — diagram questions are marked from it,
+  // since a drawing never becomes text.
+  return { text: data.text || '', answers: data.answers || {}, image: data.image || '' };
 }
 
 // ── SCANNER 3: descriptive marking via Groq ──
@@ -6695,13 +6697,15 @@ async function submitAllAndFeedback(){
   // ── 1. Read every page through the OCR endpoint ──
   const answersById = {};   // {"1a": "C", ...}
   const rawTexts = [];
+  let pageImage = '';       // first page, used to mark drawings
   let readErrors = 0;
 
   for(let i = 0; i < pages.length; i++){
     steps.textContent = `Reading page ${i+1} of ${pages.length}…`;
     try {
-      const { text, answers } = await readAnswerPage(pages[i]);
+      const { text, answers, image } = await readAnswerPage(pages[i]);
       rawTexts.push(text);
+      if(!pageImage && image) pageImage = image;
       // Earlier pages win if the same label appears twice
       Object.entries(answers).forEach(([qid, ans]) => {
         if(!(qid in answersById)) answersById[qid] = ans;
@@ -6763,6 +6767,7 @@ async function submitAllAndFeedback(){
         paper:    { subject:item.subject, paper_code:item.paper_code, session:item.session },
         questions: qs,
         answers,
+        pageImage,
       }),
     });
     if(!r.ok){
