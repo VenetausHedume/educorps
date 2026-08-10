@@ -4474,7 +4474,7 @@ body::before {
           <span id="pages-count" style="background:rgba(0,224,255,.12);color:var(--accent);font-size:11px;padding:3px 9px;border-radius:8px;font-weight:600">0 pages</span>
         </div>
         <div style="font-size:11px;color:var(--grey);margin-bottom:12px" id="pages-hint">
-          Write your answers on paper, numbering each one (1a, 1b, 2a…). Photograph each page and add it below.
+          Number every answer (1a, 1b, 2a…). Photograph your written pages, and photograph each drawing on its own — then tag it with the question it answers.
         </div>
 
         <!-- Page upload — multiple images -->
@@ -4484,8 +4484,8 @@ body::before {
           ondrop="handlePageDrop(event)"
           onclick="document.getElementById('exam-file').click()">
           <svg><use href="#ic-upload"/></svg>
-          Add a photo of a full answer page
-          <span class="upload-area-sub">PNG · JPG — one photo per page</span>
+          Add a photo of a page
+          <span class="upload-area-sub">PNG · JPG — written answers, or a single drawing</span>
         </div>
 
         <div id="pages-preview" style="width:100%;display:flex;flex-direction:column;gap:5px;margin-top:4px"></div>
@@ -6694,19 +6694,28 @@ async function submitAllAndFeedback(){
   overlay.classList.add('show');
   bar.style.width = '0%'; pct.textContent = '0%'; steps.textContent = 'Starting…';
 
-  // ── 1. Read every page through the OCR endpoint ──
-  const answersById = {};   // {"1a": "C", ...}
+  // ── 1. Read the written-answer pages; collect drawings separately ──
+  // Drawings deliberately skip the OCR: a page of diagrams gets *described*
+  // rather than transcribed, and the description has no question labels in it.
+  const answerPages  = pages.filter(p => p.kind !== 'drawing');
+  const drawingPages = pages.filter(p => p.kind === 'drawing' && p.qid);
+  const untagged     = pages.filter(p => p.kind === 'drawing' && !p.qid).length;
+
+  if(untagged > 0){
+    overlay.classList.remove('show');
+    showToast('Choose which question each drawing answers before finishing');
+    return;
+  }
+
+  const answersById = {};
   const rawTexts = [];
-  let pageImage = '';       // first page, used to mark drawings
   let readErrors = 0;
 
-  for(let i = 0; i < pages.length; i++){
-    steps.textContent = `Reading page ${i+1} of ${pages.length}…`;
+  for(let i = 0; i < answerPages.length; i++){
+    steps.textContent = `Reading page ${i+1} of ${answerPages.length}…`;
     try {
-      const { text, answers, image } = await readAnswerPage(pages[i]);
+      const { text, answers } = await readAnswerPage(answerPages[i].file);
       rawTexts.push(text);
-      if(!pageImage && image) pageImage = image;
-      // Earlier pages win if the same label appears twice
       Object.entries(answers).forEach(([qid, ans]) => {
         if(!(qid in answersById)) answersById[qid] = ans;
       });
@@ -6714,18 +6723,32 @@ async function submitAllAndFeedback(){
       readErrors++;
       console.warn(`Page ${i+1} failed:`, e.message);
     }
-    const p = Math.round(((i+1)/pages.length)*70);
+    const p = Math.round(((i+1)/Math.max(1,answerPages.length))*60);
     bar.style.width = p+'%'; pct.textContent = p+'%';
   }
 
-  if(readErrors === pages.length){
+  if(answerPages.length > 0 && readErrors === answerPages.length && drawingPages.length === 0){
     overlay.classList.remove('show');
     showToast('Could not read any pages — is the OCR service running?');
     return;
   }
 
+  // ── Turn tagged drawings into images the marker can use ──
+  const diagrams = [];
+  for(let i = 0; i < drawingPages.length; i++){
+    steps.textContent = `Preparing drawing ${i+1} of ${drawingPages.length}…`;
+    try {
+      const img = await downscaleImage(drawingPages[i].file, 900, 0.7);
+      if(img) diagrams.push({ qid: drawingPages[i].qid, image: img });
+    } catch(e){
+      console.warn('Could not prepare drawing:', e.message);
+    }
+    const p = 60 + Math.round(((i+1)/Math.max(1,drawingPages.length))*15);
+    bar.style.width = p+'%'; pct.textContent = p+'%';
+  }
+
   const foundIds = Object.keys(answersById);
-  if(foundIds.length === 0){
+  if(foundIds.length === 0 && diagrams.length === 0){
     overlay.classList.remove('show');
     showToast('No numbered answers found. Make sure each answer is labelled (1a, 1b, 2a…)');
     console.warn('Recognized text with no labels:', rawTexts.join('\n---\n'));
@@ -6767,7 +6790,7 @@ async function submitAllAndFeedback(){
         paper:    { subject:item.subject, paper_code:item.paper_code, session:item.session },
         questions: qs,
         answers,
-        pageImage,
+        diagrams,
       }),
     });
     if(!r.ok){
@@ -6979,13 +7002,33 @@ function handlePageDrop(e){
   document.getElementById('mode-upload').classList.remove('drag-over');
   addPages(Array.from(e.dataTransfer.files || []));
 }
+// A page is either written answers (read by the OCR) or a single drawing
+// tagged with the question it answers. Mixing the two on one photo is what
+// broke reading — a page full of diagrams gets described rather than
+// transcribed, and a drawing with no tag can't be attributed to a question.
 function addPages(files){
   if(!window._examPages) window._examPages = [];
   const images = files.filter(f => f.type && f.type.startsWith('image/'));
   if(images.length === 0){ showToast('Please add image files (PNG or JPG)'); return; }
-  images.forEach(f => window._examPages.push(f));
+  images.forEach(f => window._examPages.push({ file:f, kind:'answers', qid:'' }));
   renderPages();
   showToast(images.length + ' page' + (images.length!==1?'s':'') + ' added');
+}
+
+// Switch a page between written answers and a drawing
+function setPageKind(i, kind){
+  const pages = window._examPages || [];
+  if(!pages[i]) return;
+  pages[i].kind = kind;
+  if(kind === 'answers') pages[i].qid = '';
+  renderPages();
+}
+
+// Which question a drawing answers
+function setPageQid(i, qid){
+  const pages = window._examPages || [];
+  if(!pages[i]) return;
+  pages[i].qid = String(qid || '').trim();
 }
 function removePage(i){
   if(!window._examPages) return;
@@ -6994,38 +7037,79 @@ function removePage(i){
 }
 function renderPages(){
   const pages = window._examPages || [];
+  const qs = (currentExam && currentExam.item.questions) || [];
 
-  // Compact list under the upload box
   const box = document.getElementById('pages-preview');
   if(box) box.innerHTML = '';
 
-  // Ordered, reorderable list in the side panel
   const list = document.getElementById('page-list');
   if(list){
     list.innerHTML = '';
     if(pages.length === 0){
       list.innerHTML = '<div style="opacity:.5;font-size:.8rem;padding:6px 0">' +
-        'No pages yet. Photograph each page of your answers and add them in order.</div>';
+        'No pages yet. Photograph your written answers, and any drawings separately.</div>';
     }
-    pages.forEach((f, i) => {
+
+    pages.forEach((pg, i) => {
+      const isDrawing = pg.kind === 'drawing';
+
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;border:2px solid var(--ink);' +
-        'border-radius:10px;padding:7px 10px;background:var(--paper);' +
-        'box-shadow:2px 3px 0 var(--shadow);transform:rotate(' + (i%2 ? '.4' : '-.4') + 'deg)';
-      row.innerHTML =
+      row.style.cssText = 'display:flex;flex-direction:column;gap:6px;border:2px solid var(--ink);' +
+        'border-radius:10px;padding:8px 10px;background:var(--paper);' +
+        'box-shadow:2px 3px 0 var(--shadow);transform:rotate(' + (i%2 ? '.3' : '-.3') + 'deg)';
+
+      // Top line: number, filename, reorder, remove
+      const top = document.createElement('div');
+      top.style.cssText = 'display:flex;align-items:center;gap:8px';
+      top.innerHTML =
         '<span style="display:grid;place-items:center;width:24px;height:24px;flex:none;' +
-          'border-radius:7px;background:var(--hi);color:var(--ink);font-family:\'Patrick Hand\',cursive;' +
-          'font-size:13px">' + (i+1) + '</span>' +
-        '<span style="flex:1;min-width:0;font-size:.78rem;overflow:hidden;' +
-          'text-overflow:ellipsis;white-space:nowrap" title="' + f.name + '">' + f.name + '</span>' +
-        '<button title="Move up" onclick="movePage(' + i + ',-1)" ' +
-          (i === 0 ? 'disabled ' : '') +
+          'border-radius:7px;background:var(--hi);color:var(--ink);' +
+          'font-family:\'Patrick Hand\',cursive;font-size:13px">' + (i+1) + '</span>' +
+        '<span style="flex:1;min-width:0;font-size:.76rem;overflow:hidden;' +
+          'text-overflow:ellipsis;white-space:nowrap" title="' + pg.file.name + '">' + pg.file.name + '</span>' +
+        '<button title="Move up" onclick="movePage(' + i + ',-1)" ' + (i===0?'disabled ':'') +
           'style="background:none;border:none;cursor:pointer;opacity:' + (i===0?'.25':'.7') + ';padding:2px 4px">↑</button>' +
-        '<button title="Move down" onclick="movePage(' + i + ',1)" ' +
-          (i === pages.length-1 ? 'disabled ' : '') +
+        '<button title="Move down" onclick="movePage(' + i + ',1)" ' + (i===pages.length-1?'disabled ':'') +
           'style="background:none;border:none;cursor:pointer;opacity:' + (i===pages.length-1?'.25':'.7') + ';padding:2px 4px">↓</button>' +
         '<button title="Remove" onclick="removePage(' + i + ')" ' +
           'style="background:none;border:none;cursor:pointer;opacity:.7;padding:2px 4px">✕</button>';
+      row.appendChild(top);
+
+      // Type toggle
+      const toggle = document.createElement('div');
+      toggle.style.cssText = 'display:flex;gap:6px';
+      const btn = (label, kind, active) =>
+        '<button onclick="setPageKind(' + i + ',\'' + kind + '\')" ' +
+        'style="flex:1;cursor:pointer;font-family:\'Patrick Hand\',cursive;font-size:.74rem;' +
+        'padding:5px 8px;border-radius:8px;border:2px solid ' + (active ? 'var(--ink)' : 'var(--rule)') + ';' +
+        'background:' + (active ? 'var(--hi)' : 'transparent') + ';color:var(--ink)">' + label + '</button>';
+      toggle.innerHTML = btn('Written answers', 'answers', !isDrawing) +
+                         btn('A drawing', 'drawing', isDrawing);
+      row.appendChild(toggle);
+
+      // Drawings need to say which question they answer — the marker can't
+      // work it out from the image, and guessing marks the wrong question.
+      if(isDrawing){
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+
+        const diagramQs = qs
+          .map((q, qi) => ({ q: q.q || String(qi+1), text: q.text || '' }))
+          .filter(x => x.q);
+
+        const opts = ['<option value="">Which question?</option>']
+          .concat(diagramQs.map(x =>
+            '<option value="' + x.q + '"' + (pg.qid === x.q ? ' selected' : '') + '>' + x.q + '</option>'))
+          .join('');
+
+        wrap.innerHTML =
+          '<select onchange="setPageQid(' + i + ', this.value)" ' +
+          'style="flex:1;font-family:\'Patrick Hand\',cursive;font-size:.78rem;padding:5px 8px;' +
+          'border-radius:8px;border:2px solid ' + (pg.qid ? 'var(--ink)' : 'var(--margin)') + ';' +
+          'background:var(--paper);color:var(--ink)">' + opts + '</select>';
+        row.appendChild(wrap);
+      }
+
       list.appendChild(row);
     });
   }
@@ -7034,9 +7118,11 @@ function renderPages(){
   if(cnt) cnt.textContent = pages.length + ' page' + (pages.length!==1?'s':'');
   const prog = document.getElementById('exam-progress');
   if(prog){
+    const drawings = pages.filter(p => p.kind === 'drawing').length;
     prog.textContent = pages.length === 0
       ? 'Add your pages, then finish'
-      : pages.length + ' page' + (pages.length!==1?'s':'') + ' ready to mark';
+      : pages.length + ' page' + (pages.length!==1?'s':'') +
+        (drawings ? ' (' + drawings + ' drawing' + (drawings!==1?'s':'') + ')' : '') + ' ready';
   }
 }
 
