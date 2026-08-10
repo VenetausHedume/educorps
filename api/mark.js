@@ -15,6 +15,8 @@
 // ══════════════════════════════════════════════════════════
 
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Groq retires models often — if you see "model_not_found", check
 // https://console.groq.com/docs/deprecations and update these two lines.
 // Last verified: August 2026
@@ -136,6 +138,7 @@ async function handleMarkPaper(body, groqKey, res){
   }
 
   const results = [];
+  let diagramsMarked = 0;
   for(const a of withDiagrams){
     const idx    = a.qIndex;
     const paired = plan[idx];
@@ -421,18 +424,15 @@ The image is a page of the student's handwritten work. Find the drawing that ans
 
 Be fair but accurate. Where the mark scheme specifies measurements, check them against the grid squares if a grid is present. If you genuinely cannot find a drawing for this question, award 0 and say so plainly rather than guessing.
 
-Respond with ONLY a JSON object, no other text:
-{
-  "awarded": <integer 0 to ${maxMarks}>,
-  "found": <true if you located a drawing for this question, false otherwise>,
-  "feedback": "<one or two short sentences for the student>"
-}`;
+Reply with a single JSON object and nothing else — no explanation before or
+after it, no markdown code fences:
+{"awarded": <integer 0 to ${maxMarks}>, "found": <true or false>, "feedback": "<one or two short sentences for the student>"}`;
 
-  const r = await fetch(GROQ_URL, {
+  let r = await fetch(GROQ_URL, {
     method:'POST',
     headers:{ 'Authorization':`Bearer ${groqKey}`, 'Content-Type':'application/json' },
     body: JSON.stringify({
-      model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 500,
+      model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 400,
       messages: [{
         role:'user',
         content: [
@@ -445,17 +445,52 @@ Respond with ONLY a JSON object, no other text:
 
   if(!r.ok){
     const t = await r.text();
-    throw new Error(`Diagram marking error: ${t.slice(0,160)}`);
+    // One retry on a rate limit — Groq tells us how long to wait
+    if(r.status === 429){
+      const wait = t.match(/try again in ([\d.]+)s/i);
+      const ms = wait ? Math.ceil(parseFloat(wait[1]) * 1000) + 500 : 12000;
+      await sleep(Math.min(ms, 30000));
+      const retry = await fetch(GROQ_URL, {
+        method:'POST',
+        headers:{ 'Authorization':`Bearer ${groqKey}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 400,
+          messages: [{ role:'user', content: [
+            { type:'text', text: prompt },
+            { type:'image_url', image_url:{ url: pageImage } },
+          ]}],
+        }),
+      });
+      if(retry.ok){ r = retry; }
+      else throw new Error(`Diagram marking rate limited: ${(await retry.text()).slice(0,120)}`);
+    } else {
+      throw new Error(`Diagram marking error: ${t.slice(0,160)}`);
+    }
   }
 
   const data = await r.json();
   const raw  = data.choices?.[0]?.message?.content || '';
-  const m    = raw.match(/\{[\s\S]*\}/);
-  if(!m) return { awarded:0, maxMarks, feedback:'Could not parse the diagram marking result.' };
 
-  let parsed;
-  try { parsed = JSON.parse(m[0]); }
-  catch { return { awarded:0, maxMarks, feedback:'Diagram marking parse error.' }; }
+  // Vision models are chattier than text ones — strip markdown fences and
+  // any prose around the JSON before parsing.
+  const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+
+  let parsed = null;
+  if(m){ try { parsed = JSON.parse(m[0]); } catch { parsed = null; } }
+
+  if(!parsed){
+    // Last resort: pull a mark out of prose like "I award 2 marks" or "2/3"
+    const n = cleaned.match(/(\d+)\s*(?:\/\s*\d+|marks?\b)/i);
+    if(n){
+      const guess = Math.max(0, Math.min(Number(n[1]) || 0, maxMarks));
+      return { awarded:guess, maxMarks, correct:guess >= maxMarks,
+        feedback: cleaned.slice(0, 220) };
+    }
+    return { awarded:0, maxMarks,
+      feedback:'Could not read the diagram marking result.',
+      raw: cleaned.slice(0, 200) };
+  }
 
   let awarded = Number(parsed.awarded) || 0;
   awarded = Math.max(0, Math.min(awarded, maxMarks));
