@@ -125,17 +125,22 @@ async function handleMarkPaper(body, groqKey, res){
   const plan = planMarking(questions, msArray);
 
   // ── Mark each submitted answer ──
-  // Diagram questions won't appear in `answers` (no text was read for
-  // them), so add a placeholder for each so they still get marked.
+  // Drawings arrive tagged with the question they answer, each as its own
+  // image. That tag comes from the student rather than being inferred: a
+  // page can hold several drawings and guessing which is which marks the
+  // wrong question.
+  const diagramFor = {};   // qIndex -> image
+  (body.diagrams || []).forEach(d => {
+    const idx = plan.findIndex(p => normalizeQID(p.q) === normalizeQID(d.qid));
+    if(idx >= 0 && d.image) diagramFor[idx] = d.image;
+  });
+
   const answered = new Set(answers.map(a => a.qIndex));
   const withDiagrams = answers.slice();
-  if(body.pageImage){
-    plan.forEach((p, i) => {
-      if(p.routing && p.routing.route === 'diagram' && !answered.has(i)){
-        withDiagrams.push({ qIndex: i, studentText: '' });
-      }
-    });
-  }
+  Object.keys(diagramFor).forEach(k => {
+    const i = Number(k);
+    if(!answered.has(i)) withDiagrams.push({ qIndex: i, studentText: '' });
+  });
 
   const results = [];
   let diagramsMarked = 0;
@@ -157,7 +162,7 @@ async function handleMarkPaper(body, groqKey, res){
 
     if(routing.route === 'diagram'){
       try {
-        const out = await markDiagram(paired, body.pageImage, groqKey, paper.subject);
+        const out = await markDiagram(paired, diagramFor[idx], groqKey, paper.subject);
         results.push({ qIndex:idx, q:paired.q, ...out, route:'diagram' });
       } catch(e){
         results.push({ qIndex:idx, q:paired.q, awarded:0, maxMarks:paired.marks||0,
@@ -406,8 +411,8 @@ async function markDiagram(paired, pageImage, groqKey, subject){
   const maxMarks = paired.marks || ms.max_marks || 1;
 
   if(!pageImage){
-    return { awarded:0, maxMarks,
-      feedback:'This question needs a diagram, but no page image was available to mark it.' };
+    return { awarded:0, maxMarks, unmarked:true,
+      feedback:'This question needs a drawing. Add a photo of it and tag it with this question number.' };
   }
 
   const points = (Array.isArray(ms.mark_points) ? ms.mark_points : [])
