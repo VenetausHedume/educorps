@@ -20,6 +20,7 @@ const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
 // Last verified: August 2026
 const VISION_MODEL = 'qwen/qwen3.6-27b';      // multimodal (reads handwriting)
 const TEXT_MODEL   = 'openai/gpt-oss-120b';   // text-only (descriptive marking)
+const DIAGRAM_MODEL = 'qwen/qwen3.6-27b';     // multimodal (marks drawings/graphs)
 
 const SUPABASE_URL = 'https://yirvkjjrfvqeyjrzgahm.supabase.co';
 
@@ -122,21 +123,44 @@ async function handleMarkPaper(body, groqKey, res){
   const plan = planMarking(questions, msArray);
 
   // ── Mark each submitted answer ──
+  // Diagram questions won't appear in `answers` (no text was read for
+  // them), so add a placeholder for each so they still get marked.
+  const answered = new Set(answers.map(a => a.qIndex));
+  const withDiagrams = answers.slice();
+  if(body.pageImage){
+    plan.forEach((p, i) => {
+      if(p.routing && p.routing.route === 'diagram' && !answered.has(i)){
+        withDiagrams.push({ qIndex: i, studentText: '' });
+      }
+    });
+  }
+
   const results = [];
-  for(const a of answers){
+  for(const a of withDiagrams){
     const idx    = a.qIndex;
     const paired = plan[idx];
     if(!paired) continue;
 
     const text = stripQuestionLabels(a.studentText || '');
-    if(!text){
+    const routing = paired.routing;
+
+    // Diagram questions have no transcribed text by definition — the
+    // answer is a drawing — so only bail on empty text for the others.
+    if(!text && routing.route !== 'diagram'){
       results.push({ qIndex:idx, q:paired.q, awarded:0, maxMarks:paired.marks||0,
         feedback:'No answer detected in the image.', route:'none' });
       continue;
     }
 
-    const routing = paired.routing;
-    if(routing.route === 'numerical'){
+    if(routing.route === 'diagram'){
+      try {
+        const out = await markDiagram(paired, body.pageImage, groqKey, paper.subject);
+        results.push({ qIndex:idx, q:paired.q, ...out, route:'diagram' });
+      } catch(e){
+        results.push({ qIndex:idx, q:paired.q, awarded:0, maxMarks:paired.marks||0,
+          feedback:'Could not mark diagram: '+e.message, route:'error' });
+      }
+    } else if(routing.route === 'numerical'){
       const out = markNumerical(text, paired.ms || {}, routing.maxMarks);
       results.push({ qIndex:idx, q:paired.q, ...out, route:'numerical' });
     } else {
@@ -177,6 +201,15 @@ function buildMSLookup(msArray){
   return map;
 }
 
+// Questions whose answer IS a drawing — a net, a shaded region, a plotted
+// graph, a construction. Text OCR can't read these, so they go to a vision
+// model with the page image instead of the transcribed text.
+const DIAGRAM_COMMANDS = ['draw','shade','plot','sketch','construct','complete the diagram','complete the graph','complete the net','label the','mark on','show on the diagram','on the grid','on the axes'];
+function isDiagramQuestion(q){
+  const hay = ((q.command || '') + ' ' + (q.text || '')).toLowerCase();
+  return DIAGRAM_COMMANDS.some(w => hay.includes(w));
+}
+
 const NUMERICAL_COMMANDS   = ['calculate','find','solve','show','determine','convert','complete','state','write','give','measure','count','work out'];
 const DESCRIPTIVE_COMMANDS = ['explain','describe','evaluate','suggest','compare','analyse','analyze','define','discuss','justify','assess','outline','identify'];
 function inferTypeFromCommand(command){
@@ -205,6 +238,14 @@ function pairQuestionsWithMS(questions, msArray){
 function scanner0(q){
   const ms = q.ms;
   const maxMarks = q.marks || (ms && ms.max_marks) || 1;
+
+  // Checked before anything else: a "draw the net" question has a mark
+  // scheme full of prose, which would otherwise route it to text marking
+  // against an answer the OCR never saw.
+  if(isDiagramQuestion(q)){
+    return { route:'diagram', reason:'drawing-required', maxMarks, ms: ms || null };
+  }
+
   if(!ms) return { route:'descriptive', reason:'no-markscheme', maxMarks, ms:null };
 
   const hasFixedAnswer = ms.answer !== null && ms.answer !== undefined && String(ms.answer).trim() !== '';
@@ -346,6 +387,84 @@ async function markDescriptive(studentText, paired, groqKey, subject){
     feedback: parsed.feedback || '',
     pointsHit:    parsed.points_hit    || [],
     pointsMissed: parsed.points_missed || [],
+  };
+}
+
+
+// ══════════════════════════════════════════════════════════
+//  SCANNER 4 — diagram marking via a vision model
+//
+//  Nets, shaded regions, plotted graphs, constructions. The student's
+//  drawing never becomes text, so this sends the page image itself
+//  along with what the mark scheme is looking for.
+// ══════════════════════════════════════════════════════════
+async function markDiagram(paired, pageImage, groqKey, subject){
+  const ms       = paired.ms || {};
+  const maxMarks = paired.marks || ms.max_marks || 1;
+
+  if(!pageImage){
+    return { awarded:0, maxMarks,
+      feedback:'This question needs a diagram, but no page image was available to mark it.' };
+  }
+
+  const points = (Array.isArray(ms.mark_points) ? ms.mark_points : [])
+    .map((p,i) => `${i+1}. ${p}`).join('\n');
+
+  const prompt = `You are a Cambridge IGCSE ${subject || ''} examiner marking a DRAWN answer.
+
+QUESTION: ${paired.text || '(question text unavailable)'}
+
+WHAT THE MARK SCHEME REQUIRES (max ${maxMarks} marks):
+${points || '(no specific points given — use your judgement)'}
+
+The image is a page of the student's handwritten work. Find the drawing that answers this question and mark it.
+
+Be fair but accurate. Where the mark scheme specifies measurements, check them against the grid squares if a grid is present. If you genuinely cannot find a drawing for this question, award 0 and say so plainly rather than guessing.
+
+Respond with ONLY a JSON object, no other text:
+{
+  "awarded": <integer 0 to ${maxMarks}>,
+  "found": <true if you located a drawing for this question, false otherwise>,
+  "feedback": "<one or two short sentences for the student>"
+}`;
+
+  const r = await fetch(GROQ_URL, {
+    method:'POST',
+    headers:{ 'Authorization':`Bearer ${groqKey}`, 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 500,
+      messages: [{
+        role:'user',
+        content: [
+          { type:'text', text: prompt },
+          { type:'image_url', image_url:{ url: pageImage } },
+        ],
+      }],
+    }),
+  });
+
+  if(!r.ok){
+    const t = await r.text();
+    throw new Error(`Diagram marking error: ${t.slice(0,160)}`);
+  }
+
+  const data = await r.json();
+  const raw  = data.choices?.[0]?.message?.content || '';
+  const m    = raw.match(/\{[\s\S]*\}/);
+  if(!m) return { awarded:0, maxMarks, feedback:'Could not parse the diagram marking result.' };
+
+  let parsed;
+  try { parsed = JSON.parse(m[0]); }
+  catch { return { awarded:0, maxMarks, feedback:'Diagram marking parse error.' }; }
+
+  let awarded = Number(parsed.awarded) || 0;
+  awarded = Math.max(0, Math.min(awarded, maxMarks));
+
+  return {
+    awarded, maxMarks,
+    correct: awarded >= maxMarks,
+    feedback: parsed.feedback || '',
+    found: parsed.found !== false,
   };
 }
 
