@@ -432,7 +432,11 @@ after it, no markdown code fences:
     method:'POST',
     headers:{ 'Authorization':`Bearer ${groqKey}`, 'Content-Type':'application/json' },
     body: JSON.stringify({
-      model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 400,
+      model: DIAGRAM_MODEL,
+      // Qwen 3.6 thinks aloud unless told not to — that monologue was
+      // leaking into feedback and confusing the JSON parser.
+      reasoning_effort: 'none',
+      temperature: 0.3, max_tokens: 400,
       messages: [{
         role:'user',
         content: [
@@ -454,7 +458,11 @@ after it, no markdown code fences:
         method:'POST',
         headers:{ 'Authorization':`Bearer ${groqKey}`, 'Content-Type':'application/json' },
         body: JSON.stringify({
-          model: DIAGRAM_MODEL, temperature: 0.1, max_tokens: 400,
+          model: DIAGRAM_MODEL,
+      // Qwen 3.6 thinks aloud unless told not to — that monologue was
+      // leaking into feedback and confusing the JSON parser.
+      reasoning_effort: 'none',
+      temperature: 0.3, max_tokens: 400,
           messages: [{ role:'user', content: [
             { type:'text', text: prompt },
             { type:'image_url', image_url:{ url: pageImage } },
@@ -480,16 +488,21 @@ after it, no markdown code fences:
   if(m){ try { parsed = JSON.parse(m[0]); } catch { parsed = null; } }
 
   if(!parsed){
-    // Last resort: pull a mark out of prose like "I award 2 marks" or "2/3"
-    const n = cleaned.match(/(\d+)\s*(?:\/\s*\d+|marks?\b)/i);
-    if(n){
-      const guess = Math.max(0, Math.min(Number(n[1]) || 0, maxMarks));
-      return { awarded:guess, maxMarks, correct:guess >= maxMarks,
-        feedback: cleaned.slice(0, 220) };
-    }
+    // Never guess a mark from unparsed prose. Reasoning models think out
+    // loud, and scraping a number out of that awarded full marks for
+    // drawings that were not on the page at all. If the model did not
+    // return usable JSON, award nothing and say so honestly.
     return { awarded:0, maxMarks,
-      feedback:'Could not read the diagram marking result.',
+      feedback:'This drawing could not be marked automatically — check it yourself.',
+      unmarked:true,
       raw: cleaned.slice(0, 200) };
+  }
+
+  // A reasoning model can return JSON while still having rambled first.
+  // If it never claims to have FOUND a drawing, do not award marks.
+  if(parsed.found === false){
+    return { awarded:0, maxMarks, found:false,
+      feedback: parsed.feedback || 'No drawing found for this question.' };
   }
 
   let awarded = Number(parsed.awarded) || 0;
