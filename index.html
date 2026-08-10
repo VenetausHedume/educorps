@@ -6769,14 +6769,17 @@ async function submitAllAndFeedback(){
 
   if(unmatched.length) console.warn('Answers with no matching question:', unmatched);
 
-  if(answers.length === 0){
+  // Drawings are marked from their tag, not from any transcribed text, so
+  // a submission of drawings alone is perfectly valid.
+  if(answers.length === 0 && diagrams.length === 0){
     overlay.classList.remove('show');
     showToast('Your answer labels did not match any question in this paper');
     return;
   }
 
   // ── 3. Mark on the server ──
-  steps.textContent = `Marking ${answers.length} answer${answers.length!==1?'s':''}…`;
+  const marking = answers.length + diagrams.length;
+  steps.textContent = `Marking ${marking} answer${marking!==1?'s':''}…`;
   bar.style.width = '80%'; pct.textContent = '80%';
 
   let results = [], perQuestionMarks = [];
